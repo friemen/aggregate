@@ -6,18 +6,6 @@
 
 
 ;; -------------------------------------------------------------------
-;; For testing in the REPL
-
-#_ (def con {:connection
-             (jdbc/get-connection
-              {:classname "org.h2.Driver"
-               :subprotocol "h2"
-               :subname "mem:repl"
-               :user "sa"
-               :password ""})})
-
-
-;; -------------------------------------------------------------------
 ;; Support code for tests
 
 (def db-spec {:classname "org.h2.Driver"
@@ -360,6 +348,7 @@
                                    :update-links-fn (agg/make-update-links-fn :project_person
                                                                               :person_id :project_id)
                                    :owned? false}}}})
+
 (defn setup-<many>!
   [con]
   (create-schema! con <many>-schema))

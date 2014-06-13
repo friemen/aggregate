@@ -3,16 +3,32 @@
   (:require [clojure.java.jdbc :as jdbc]))
 
 ;; TODO
+;; - create helper fn for er-config creation
 ;; - find out how to map Game-Bet-Player-Gambler relations
 ;; - create a load-all function
 ;; - make :id keyword configurable per entity
 
-;;--------------------------------------------------------------------
 
-(defn dump
-  [x]
-  (println x)
-  x)
+;; -------------------------------------------------------------------
+;; For testing in the REPL
+
+;; This will start an im-memory DB instance
+#_ (def con {:connection
+             (jdbc/get-connection
+              {:classname "org.h2.Driver"
+               :subprotocol "h2"
+               :subname "mem:repl"
+               :user "sa"
+               :password ""})})
+
+;; Alternatively, this will start a DB server
+#_ (do (require '[aggregate.h2 :as h2])
+       (require '[aggregate.core :as agg])
+       (h2/start-db))
+
+;; Subsequently you can use @h2/db-con, which will use the DB server
+;; To inspect the state of the DB use http://localhost:8082
+
 
 
 ;;--------------------------------------------------------------------
@@ -33,6 +49,14 @@
 ;;   - update-links-fn  A function for updating link table records.
 ;;                      (only relevant for :<many>)
 
+
+;;--------------------------------------------------------------------
+;; Common utilities
+
+(defn dump
+  [x]
+  (println x)
+  x)
 
 
 ;;--------------------------------------------------------------------
@@ -140,7 +164,7 @@
 
 
 ;;--------------------------------------------------------------------
-;; Create entity-relations map
+;; Helper for succinctly creating er-config map
 
 ; TODO
 
