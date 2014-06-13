@@ -27,6 +27,8 @@ Here's an example
             [:name "varchar(30)"]]
    :project_person [[:person_id "integer"]
                     [:project_id "integer"]]})
+(require '[aggregate.core :as agg])
+;= nil
 ;; A (currently verbose) er-config that enables
 ;; load, save! and delete! to take the relationship into account
 (def <many>-er
@@ -50,9 +52,35 @@ Here's an example
                                    :owned? false}}}})
 ```
 
-You can see that the library provides factories that create default
-implementations DB access functions based on core.java.jdbc.
+You can see that the library provides factories that create default DB
+access functions based on core.java.jdbc.
 
+An example of usage:
+```clojure
+(agg/save! <many>-er @db-con :project
+            {:name "Webapp"
+             :members [{:name "Donald"}
+                       {:name "Mickey"}]})
+;= {::agg/entity :project
+;   :id 1
+;   :name "Webapp"
+;   :members [{::agg/entity :person
+;              :id 1
+;              :name "Donald"}
+;             {::agg/entity :person
+;              :id 2
+;              :name "Mickey"}]}
+(agg/load <many>-er @db-con :project 1)
+;= {::agg/entity :project
+;   :id 1
+;   :name "Webapp"
+;   :members [{::agg/entity :person
+;              :id 1
+;              :name "Donald"}
+;             {::agg/entity :person
+;              :id 2
+;              :name "Mickey"}]}
+```
 
 This is currently work in progress!
 
