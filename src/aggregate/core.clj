@@ -3,10 +3,11 @@
   (:require [clojure.java.jdbc :as jdbc]))
 
 ;; TODO
-;; - create helper fn for er-config creation
-;; - find out how to map Game-Bet-Player-Gambler relations
+;; - make detection if insert or update is necessary
+;;   configurable by using a function
+;; - Create a working example/test with Game-Bet-Player-Gambler entities
 ;; - create a load-all function
-;; - make :id keyword configurable per entity
+;; - make :id keyword configurable on a per entity basis
 
 
 ;; -------------------------------------------------------------------
@@ -34,9 +35,12 @@
 ;;--------------------------------------------------------------------
 ;; Concepts
 ;;
+;; * An er-config is a map of entities.
+;;
 ;; * An entity is a keyword pointing to a map that contains functions for
 ;;   reading, inserting, updating or deleting records, and contains
 ;;   relations descriptions to other entities.
+;;
 ;; * A relation is a map with the keys
 ;;   - relation-type    Admissible values are :one>, :<many and :<many>
 ;;   - entity-kw        A keyword denoting an entity
@@ -49,7 +53,6 @@
 ;;   - update-links-fn  A function for updating link table records.
 ;;                      (only relevant for :<many>)
 
-
 ;;--------------------------------------------------------------------
 ;; Common utilities
 
@@ -60,7 +63,7 @@
 
 
 ;;--------------------------------------------------------------------
-;; Factories for default JDBC read, insert, update and delete functions
+;; Factories for default DB access functions based on clojure.java.jdbc
 
 (defn make-read-fn
   "Returns a read function [db-spec id -> row-map] for a specific table.
@@ -71,6 +74,7 @@
     (first
      (jdbc/query db-spec
                  [(str "select * from " (name tablename) " where id = ?") id]))))
+
 
 (defn make-insert-fn
   "Returns an insert function [db-spec row-map] for a specific table.
@@ -83,6 +87,7 @@
                                 row-map)
                   first vals first)]
       (assoc row-map :id id))))
+
 
 (defn make-update-fn
   "Returns an update function [db-spec set-map -> set-map] for a
@@ -97,6 +102,7 @@
                   set-map
                   ["id = ?" (:id set-map)])
     set-map))
+
 
 (defn make-delete-fn
   "Returns a delete function [db-spec id -> (Seq id)] for a specific
@@ -161,12 +167,111 @@
    :delete (make-delete-fn tablename)})
 
 
-
-
 ;;--------------------------------------------------------------------
-;; Helper for succinctly creating er-config map
+;; Helpers for succinctly creating er-config map
 
-; TODO
+
+(defn- default-fk
+  "Returns a keyword that has the suffix '_id'."
+  [entity-kw]
+  (-> entity-kw name (str "_id") keyword))
+
+
+(defn- default-link-tablename
+  "Takes two tablenames and joins them with '_' and returns the result as keyword."
+  [a-entity-kw b-entity-kw]
+  (keyword (str (name a-entity-kw) "_" (name b-entity-kw))))
+
+
+(defn- with-default-relation-fns
+  "Returns a pair [relation-kw relation] with default functions added where missing."
+  [parent-entity-kw [relation-kw {:keys [relation-type entity-kw query-fn update-links-fn] :as relation}]]
+  (vector relation-kw
+          (case relation-type
+            :one> relation
+            :<many (assoc relation
+                     :query-fn
+                     (or query-fn
+                         (make-query-<many-fn entity-kw
+                                              (default-fk entity-kw))))
+            :<many> (let [fk-a (default-fk parent-entity-kw)
+                          fk-b (default-fk entity-kw)]
+                      (assoc relation
+                        :query-fn
+                        (or query-fn
+                            (make-query-<many>-fn entity-kw
+                                                  (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b))
+                        :update-links-fn
+                        (or update-links-fn
+                            (make-update-links-fn (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b)))))))
+
+
+(defn- with-default-fns
+  "Returns an er-config with default functions added where missing."
+  [er-config]
+  (->> er-config
+       (map (fn [[entity-kw {:keys [fns relations]}]]
+              (vector entity-kw
+                      {:fns (or fns (make-entity-fns entity-kw))
+                       :relations (->> relations
+                                       (map (partial with-default-relation-fns entity-kw))
+                                       (into {}))})))
+       (into {})))
+
+
+(defn make-er-config
+  "Creates a er-config map from the given entity-specs."
+  [& entity-specs]
+  (with-default-fns entity-specs))
+
+
+(defn entity
+  "Returns an entity-spec from an entity keyword, an options map and
+  an arbitrary number of relation-specs. Admissible options are:
+  :fns  A map with functions for :read, :insert, :update and :delete."
+  ([entity-kw]
+     (entity entity-kw {}))
+  ([entity-kw options & relation-specs]
+     (vector entity-kw (merge options
+                              {:relations (into {} relation-specs)}) )))
+
+
+(defn ->1
+  "Returns a relation-spec for a :one> relationship."
+  ([relation-kw entity-kw]
+     (->1 relation-kw entity-kw {}))
+  ([relation-kw entity-kw options]
+     (vector relation-kw (merge {:relation-type :one>
+                                 :entity-kw entity-kw
+                                 :fk-kw (default-fk relation-kw)
+                                 :owned? true}
+                                options))))
+
+
+(defn ->n
+  "Returns a relation-spec for a :<many relationship."
+  ([relation-kw entity-kw]
+     (->n relation-kw entity-kw {}))
+  ([relation-kw entity-kw options]
+     (vector relation-kw (merge {:relation-type :<many
+                                 :entity-kw entity-kw
+                                 :fk-kw :owner_id
+                                 :query-fn nil
+                                 :owned? true}
+                                options))))
+
+
+(defn ->mn
+  "Returns a relation-spec for a :<many> relationship."
+  ([relation-kw entity-kw]
+     (->mn relation-kw entity-kw {}))
+  ([relation-kw entity-kw options]
+     (vector relation-kw (merge {:relation-type :<many>
+                                 :entity-kw entity-kw
+                                 :query-fn nil
+                                 :update-links-fn nil
+                                 :owned? false}
+                                options))))
 
 
 ;;--------------------------------------------------------------------
@@ -183,6 +288,7 @@
        (cons ::entity)
        (apply (partial dissoc m))))
 
+
 (defn- rt?
   "Returns true if the relation-type equals t."
   [t [_ {:keys [relation-type]}]]
@@ -197,6 +303,7 @@
 
 
 (defn- load-relation
+  "Loads more data according to the specified relation."
   [er-config db-spec m
    [relation-kw
     {:keys [relation-type entity-kw fk-kw query-fn]}]]
@@ -223,6 +330,9 @@
 
 
 (defn load
+  "Loads an aggregate by id, the entity-kw denotes the aggregate root.
+  Returns a map containing the entity-kw in ::entity and all data, or 
+  nil if the entity-kw is unknown or the record does not exist."
   ([er-config db-spec entity-kw id]
      (let [read-fn (-> er-config entity-kw :fns :read)
            m (if read-fn (some-> (read-fn db-spec id)

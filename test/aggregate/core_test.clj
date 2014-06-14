@@ -415,6 +415,25 @@
 
 
 ;; -------------------------------------------------------------------
+;; Testing functions to build er-config
+
+(deftest make-er-config-test
+  (let [er-config (agg/make-er-config
+                   (agg/entity :project
+                               {}
+                               (agg/->mn :members :person)
+                               (agg/->n :tasks :task)
+                               (agg/->1 :manager :person))
+                   (agg/entity :person))]
+    (is (-> er-config :project :fns :read))
+    (is (-> er-config :person :fns :delete))
+    (is (-> er-config :project :relations :tasks :query-fn))
+    (is (-> er-config :project :relations :members :update-links-fn))
+    (is (= :manager_id (-> er-config :project :relations :manager :fk-kw)))))
+
+
+
+;; -------------------------------------------------------------------
 ;; Tests with a more realistic schema
 
 (def betting-schema
@@ -451,3 +470,5 @@
                                  :update-links-fn nil
                                  :owned? false}}}
    :game {:fns (agg/make-entity-fns :game)}})
+
+

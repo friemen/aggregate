@@ -40,7 +40,7 @@ it is meant to be composable with SQL-oriented libraries like
 
 Include this in your namespace declaration:
 ```clojure
-(:require [aggregate.core :as agg])
+[aggregate.core :as agg]
 ```
 
 
