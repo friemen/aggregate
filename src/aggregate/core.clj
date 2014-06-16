@@ -64,6 +64,10 @@
   x)
 
 
+(defn persisted?
+  [m]
+  (contains? m :id))
+
 ;;--------------------------------------------------------------------
 ;; Factories for default DB access functions based on clojure.java.jdbc
 
@@ -376,12 +380,14 @@
     (let [fk-id (fk-kw m)]
       (when owned?
         ;; delete the former prerequisite by the foreign key from DB
-        (when (and fk-id (:id m))
+        (when (and fk-id (persisted? m))
           ;; m exists and points to the prerequisite, so update m first
           (let [update-fn (-> er-config (get parent-entity-kw) :fns :update)]
             (update-fn db-spec {:id (:id m) fk-kw nil})))
         (delete! er-config db-spec entity-kw fk-id))
-      (dissoc m fk-kw))))
+      (if (persisted? m)
+        (dissoc m fk-kw)
+        m))))
 
 
 (defn- save-dependants!
@@ -390,7 +396,7 @@
    db-spec
    m
    [relation-kw {:keys [relation-type entity-kw fk-kw update-links-fn query-fn owned?]}]]
-  {:pre [(:id m)]}
+  {:pre [(persisted? m)]}
   (let [m-id (:id m)
         m-entity-kw (::entity m)
         dependants (let [update-fn (-> er-config entity-kw :fns :update)
@@ -429,7 +435,7 @@
   (let [ins-or-up-fn (-> er-config
                          entity-kw
                          :fns
-                         (get (if (:id m) :update :insert)))
+                         (get (if (persisted? m) :update :insert)))
         saved-m (->> m
                      (without-relations-and-entity er-config entity-kw)
                      (ins-or-up-fn db-spec))]
