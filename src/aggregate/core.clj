@@ -3,11 +3,11 @@
   (:require [clojure.java.jdbc :as jdbc]))
 
 ;; TODO
-;; - make detection if insert or update is necessary
+;; - Make detection if insert or update is necessary
 ;;   configurable by using a function
-;; - Create a working example/test with Game-Bet-Player-Gambler entities
-;; - create a load-all function
-;; - make :id keyword configurable on a per entity basis
+;; - Create 3 test namespaces with more realistic examples
+;; - Create a load-all function
+;; - Make :id keyword configurable on a per entity basis
 
 
 ;; -------------------------------------------------------------------
@@ -362,6 +362,7 @@
   "Saves a record that m points to by a foreign-key."
   [er-config
    db-spec
+   parent-entity-kw
    m
    [relation-kw {:keys [entity-kw fk-kw owned?]}]]
   (if-let [p (relation-kw m)] ; does the prerequisite exist?
@@ -373,6 +374,10 @@
     (let [fk-id (fk-kw m)]
       (when owned?
         ;; delete the former prerequisite by the foreign key from DB
+        (when (and fk-id (:id m))
+          ;; m exists and points to the prerequisite, so update m first
+          (let [update-fn (-> er-config (get parent-entity-kw) :fns :update)]
+            (update-fn db-spec {:id (:id m) fk-kw nil})))
         (delete! er-config db-spec entity-kw fk-id))
       (dissoc m fk-kw))))
 
@@ -444,7 +449,7 @@
                  (filter (partial rt? :one>))
                  (filter (fn [[relation-kw relation]]
                            (contains? er-config (:entity-kw relation))))
-                 (reduce (partial save-prerequisite! er-config db-spec) m)
+                 (reduce (partial save-prerequisite! er-config db-spec entity-kw) m)
                  ;; this will persist m itself (containing all foreign keys)
                  (ins-or-up! er-config db-spec entity-kw))]
       ;; process all other types of relations
