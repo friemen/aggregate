@@ -13,6 +13,7 @@
 ;; -------------------------------------------------------------------
 ;; For testing in the REPL
 
+
 ;; This will start an im-memory DB instance
 #_ (def con {:connection
              (jdbc/get-connection
@@ -56,6 +57,7 @@
 ;;--------------------------------------------------------------------
 ;; Common utilities
 
+
 (defn dump
   [x]
   (println x)
@@ -64,6 +66,7 @@
 
 ;;--------------------------------------------------------------------
 ;; Factories for default DB access functions based on clojure.java.jdbc
+
 
 (defn make-read-fn
   "Returns a read function [db-spec id -> row-map] for a specific table.
@@ -357,7 +360,6 @@
 ;; Save aggregate
 
 
-
 (defn- save-prerequisite!
   "Saves a record that m points to by a foreign-key."
   [er-config
@@ -366,11 +368,12 @@
    m
    [relation-kw {:keys [entity-kw fk-kw owned?]}]]
   (if-let [p (relation-kw m)] ; does the prerequisite exist?
-    ;; save the prerequisite record and take it's id as foreign key 
+    ;; save the prerequisite record and take its id as foreign key 
     (let [saved-p (save! er-config db-spec entity-kw p)]
       (assoc m
         fk-kw (:id saved-p)
         relation-kw saved-p))
+    ;; prerequisite does not exist
     (let [fk-id (fk-kw m)]
       (when owned?
         ;; delete the former prerequisite by the foreign key from DB
@@ -462,9 +465,11 @@
 ;;--------------------------------------------------------------------
 ;; Delete aggregate
 
+(defn- nil->0 [n] (or n 0))
 
 (defn- delete-prerequisite!
-  "Deletes a record that m points to by a foreign key."
+  "Deletes a record that m points to by a foreign key.
+  Returns the number of deleted records or nil."
   [er-config db-spec m
    [relation-kw {:keys [relation-type entity-kw fk-kw owned?]}]]
   (when owned?
@@ -473,37 +478,46 @@
       (cond
        child (delete! er-config db-spec entity-kw child)
        fk-id (delete! er-config db-spec entity-kw fk-id)
-       :else nil))))
+       :else 0))))
 
 
 (defn- delete-dependants!
-  "Deletes all records that m contains, and that point by foreign key to m."
+  "Deletes all records that m contains, and that point by foreign key to m.
+  Returns the number of deleted records."
   [er-config db-spec m
    [relation-kw {:keys [relation-type entity-kw fk-kw update-links-fn owned?]}]]
-  (when owned?
-    (doseq [child (get m relation-kw)]
-      (delete! er-config db-spec entity-kw child)))
-  (when (= relation-type :<many>)
-    (update-links-fn db-spec (:id m) [])))
+  (let [deleted (if owned?
+                  (->> (get m relation-kw)
+                       (map (partial delete! er-config db-spec entity-kw))
+                       (map nil->0)
+                       (apply +))
+                  0)]
+    (when (= relation-type :<many>)
+      (update-links-fn db-spec (:id m) []))
+    deleted))
 
 
 (defn delete!
-  "Removes an aggregate datastructure from the database."
+  "Removes an aggregate datastructure from the database.
+  Returns the number of deleted records."
   [er-config db-spec entity-kw m-or-id]
-  (when m-or-id
+  (if m-or-id
     (let [delete-fn (-> er-config entity-kw :fns :delete)]
       (if (map? m-or-id)
-        (do
-          ;; delete all records that might point to m
-          (->> er-config entity-kw :relations
-               (remove (partial rt? :one>))
-               (map (partial delete-dependants! er-config db-spec m-or-id))
-               doall)
-          ;; delete the record
-          (delete-fn db-spec (:id m-or-id))
-          ;; delete all owned records that m points to via foreign key
-          (->> er-config entity-kw :relations
-               (filter (partial rt? :one>))
-               (map (partial delete-prerequisite! er-config db-spec m-or-id))
-               doall))
-        (delete-fn db-spec m-or-id)))))
+        (let [;; delete all records that might point to m
+              deleted-dependants (->> er-config entity-kw :relations
+                                      (remove (partial rt? :one>))
+                                      (map (partial delete-dependants! er-config db-spec m-or-id))
+                                      (map nil->0)
+                                      (apply +))
+              ;; delete the record
+              deleted-m (delete-fn db-spec (:id m-or-id))
+              ;; delete all owned records that m points to via foreign key
+              deleted-prerequisites (->> er-config entity-kw :relations
+                                         (filter (partial rt? :one>))
+                                         (map (partial delete-prerequisite! er-config db-spec m-or-id))
+                                         (map nil->0)
+                                         (apply +))]
+          (+ deleted-dependants deleted-m deleted-prerequisites))
+        (delete-fn db-spec m-or-id)))
+    0))

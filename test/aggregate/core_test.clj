@@ -93,7 +93,7 @@
     (let [m {:name "Foo"}
           saved-m (agg/save! minimal-er @db-con :person m)]
       (is (= 1 (record-count @db-con :person)))
-      (agg/delete! minimal-er @db-con :person saved-m)
+      (is (= 1 (agg/delete! minimal-er @db-con :person saved-m)))
       (is (= 0 (record-count @db-con :person))))))
 
 
@@ -175,7 +175,7 @@
         saved-m (agg/save! one>-er @db-con :person m)]
     (is (= 1 (record-count @db-con :person)))
     (is (= 1 (record-count @db-con :address)))
-    (agg/delete! one>-er @db-con :person saved-m)
+    (is (= 2 (agg/delete! one>-er @db-con :person saved-m)))
     (is (= 0 (record-count @db-con :person)))
     (is (= 0 (record-count @db-con :address)))))
 
@@ -274,7 +274,7 @@
         saved-m (agg/save! <many-er @db-con :project m)]
     (is (= 1 (record-count @db-con :project)))
     (is (= 4 (record-count @db-con :task)))
-    (agg/delete! <many-er @db-con :project saved-m)
+    (is (= 5 (agg/delete! <many-er @db-con :project saved-m)))
     (is (= 0 (record-count @db-con :project)))
     (is (= 0 (record-count @db-con :task)))))
 
@@ -370,7 +370,7 @@
     (is (= 1 (record-count @db-con :project)))
     (is (= 2 (record-count @db-con :person)))
     (is (= 2 (record-count @db-con :project_person)))
-    (agg/delete! <many>-er @db-con :project saved-m)
+    (is (= 1 (agg/delete! <many>-er @db-con :project saved-m)))
     (is (= 0 (record-count @db-con :project)))
     (is (= 2 (record-count @db-con :person)))
     (is (= 0 (record-count @db-con :project_person)))))
