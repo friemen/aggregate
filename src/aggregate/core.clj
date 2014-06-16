@@ -188,15 +188,14 @@
 
 (defn- with-default-relation-fns
   "Returns a pair [relation-kw relation] with default functions added where missing."
-  [parent-entity-kw [relation-kw {:keys [relation-type entity-kw query-fn update-links-fn] :as relation}]]
+  [parent-entity-kw [relation-kw {:keys [relation-type entity-kw fk-kw query-fn update-links-fn] :as relation}]]
   (vector relation-kw
           (case relation-type
             :one> relation
             :<many (assoc relation
                      :query-fn
                      (or query-fn
-                         (make-query-<many-fn entity-kw
-                                              (default-fk entity-kw))))
+                         (make-query-<many-fn entity-kw fk-kw)))
             :<many> (let [fk-a (default-fk parent-entity-kw)
                           fk-b (default-fk entity-kw)]
                       (assoc relation
