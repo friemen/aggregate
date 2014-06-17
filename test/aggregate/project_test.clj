@@ -67,6 +67,8 @@
 
 ;; To setup a schema in standalone H2
 #_ (do (require '[aggregate.h2 :as h2])
+       (require '[aggregate.testsupport :refer :all])
+       (require '[aggregate.core :as agg])
        (h2/start-db))
 
 #_ (create-schema! @h2/db-con schema)
@@ -111,4 +113,6 @@
           (is (= 0 (-> loaded-daisy :tasks count)))
           (is (= 1 (-> loaded-mini :projects_as_member count)))
           (is (= 0 (-> loaded-mini :projects_as_manager count)))
-          (is (= 1 (-> loaded-mini :tasks count))))))))
+          (is (= 1 (-> loaded-mini :tasks count)))))
+      (testing "Delete the project"
+        (agg/delete! er @db-con :project saved-project)))))
