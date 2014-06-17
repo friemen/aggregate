@@ -1,0 +1,100 @@
+(ns aggregate.project-test
+  (:require [clojure.test :refer :all]
+            [aggregate.core :as agg]
+            [aggregate.testsupport :refer :all]
+            [clojure.java.jdbc :as jdbc]))
+
+
+(use-fixtures :each db-fixture)
+
+(def schema
+  [:customer [(id-column)
+              [:name "varchar(30)"]]
+   :person [(id-column)
+            [:name "varchar(30)"]]
+   :project [(id-column)
+             [:name "varchar(30)"]
+             (fk-column :person :manager_id false)
+             (fk-column :customer false)]
+   :task [(id-column)
+          [:desc "varchar(50)"]
+          [:effort "integer"]
+          (fk-column :project false)
+          (fk-column :person :assignee_id false)]
+   :person_project [(fk-column :project false)
+                    (fk-column :person false)]])
+
+
+(def er
+  (agg/make-er-config
+   (agg/entity :customer {}
+               (agg/->n :projects :project {:fk-kw :customer_id}))
+   (agg/entity :person {}
+               (agg/->n :tasks :task {:fk-kw :assignee_id
+                                      :owned? false})
+               (agg/->n :projects_as_manager :project {:fk-kw :manager_id
+                                                       :owned? false})
+               (agg/->mn :projects_as_member :project))
+   (agg/entity :project {}
+               (agg/->1 :customer :customer {:owned? false})
+               (agg/->mn :members :person {:query-fn (agg/make-query-<many>-fn
+                                                      :person
+                                                      :person_project
+                                                      :project_id
+                                                      :person_id)
+                                           :update-links-fn (agg/make-update-links-fn
+                                                             :person_project
+                                                             :project_id
+                                                             :person_id)})
+               (agg/->1 :manager :person {:owned? false})
+               (agg/->n :tasks :task {:fk-kw :project_id}))
+   (agg/entity :task {}
+               (agg/->1 :project :project {:owned? false})
+               (agg/->1 :assignee :person {:owned? false}))))
+
+
+;; To setup a schema in standalone H2
+#_ (do (require '[aggregate.h2 :as h2])
+       (h2/start-db))
+
+#_ (create-schema! @h2/db-con schema)
+
+
+(def data [[:person {:name "Daisy"}]
+           [:person {:name "Mini"}]
+           [:person {:name "Mickey"}]
+           [:person {:name "Donald"}]
+           [:customer {:name "Big Company"}]
+           [:customer {:name "Startup"}]])
+
+(deftest project-tests
+  (create-schema! @db-con schema)
+  (->> data (map (partial apply agg/save! er @db-con)) doall)
+  (testing "Creating a new project"
+    (let [saved-project (agg/save! er @db-con :project
+                                   {:name "Learning Clojure"
+                                    :customer {:id 1 :name "Big Company"}
+                                    :tasks [{:desc "Buy a good book" :effort 1}
+                                            {:desc "Install Java" :effort 2}
+                                            {:desc "Configure Emacs" :effort 4}]
+                                    :members [{:id 1 :name "Daisy"}
+                                              {:id 2 :name "Mini"}]
+                                    :manager {:id 1 :name "Daisy"}})]
+      (is (= 1 (record-count @db-con :project)))
+      (testing "Assign tasks to persons"
+        (let [assign-task-er (-> er
+                                 (agg/without [:task :project]
+                                              [:person :projects_as_member :projects_as_manager]))
+              loaded-task (->> (agg/load assign-task-er @db-con :task 1)
+                               (#(assoc % :assignee {:id 2 :name "Mini"}))
+                               (agg/save! assign-task-er @db-con :task))])
+        (let [loaded-project (agg/load er @db-con :project 1) 
+              loaded-daisy (agg/load er @db-con :person 1)
+              loaded-mini (agg/load er @db-con :person 2)]
+          (is (-> loaded-project :customer))
+          (is (= 1 (-> loaded-daisy :projects_as_member count)))
+          (is (= 1 (-> loaded-daisy :projects_as_manager count)))
+          (is (= 0 (-> loaded-daisy :tasks count)))
+          (is (= 1 (-> loaded-mini :projects_as_member count)))
+          (is (= 0 (-> loaded-mini :projects_as_manager count)))
+          (is (= 1 (-> loaded-mini :tasks count))))))))

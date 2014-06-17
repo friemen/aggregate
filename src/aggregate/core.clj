@@ -57,10 +57,11 @@
 ;;--------------------------------------------------------------------
 ;; Common utilities
 
-(defn dump
-  [x]
-  (println x)
-  x)
+
+(defn log
+  [& xs]
+  #_ (apply println xs)
+  xs)
 
 ;;--------------------------------------------------------------------
 ;; Factories for default DB access functions based on clojure.java.jdbc
@@ -138,8 +139,8 @@
   [tablename linktablename fk-a fk-b]
   (let [sql (str "select * from " (name tablename)
                  " A join " (name linktablename) " AB"
-                 " on A.id = AB." (name fk-a)
-                 " where AB." (name fk-b) " = ?")]
+                 " on A.id = AB." (name fk-b)
+                 " where AB." (name fk-a) " = ?")]
     (fn [db-spec id-b]
       (->> (jdbc/query db-spec [sql id-b])
            (map #(dissoc % (keyword fk-a) (keyword fk-b)))))))
@@ -273,6 +274,23 @@
                                  :owned? false}
                                 options))))
 
+(defn- dissoc-ks
+  [m ks]
+  (apply (partial dissoc m) ks))
+
+
+(defn without
+  "Removes entities (specified by a keyword) and relations (specified
+  in a vector, where the first item is the entity keyword) from the er-config."
+  [er-config & entities-or-entity-relation-pairs]
+  (reduce (fn [er-config k-or-ks]
+            (if (coll? k-or-ks)
+              (update-in er-config [(first k-or-ks) :relations] dissoc-ks (rest k-or-ks))
+              (dissoc er-config k-or-ks)))
+          er-config
+          entities-or-entity-relation-pairs))
+
+
 
 ;;--------------------------------------------------------------------
 ;; Common utility functions for the big three load, save! and delete!
@@ -374,7 +392,7 @@
    update-m-fn
    m
    [relation-kw {:keys [entity-kw fk-kw owned?]}]]
-  #_ (println "save-prerequisite" entity-kw)
+  (log "save-prerequisite" relation-kw "->" entity-kw)
   (if-let [p (relation-kw m)] ; does the prerequisite exist?
     ;; save the prerequisite record and take its id as foreign key 
     (let [saved-p (save! er-config db-spec entity-kw p)]
@@ -401,7 +419,7 @@
    m
    [relation-kw {:keys [relation-type entity-kw fk-kw update-links-fn query-fn owned?]}]]
   {:pre [(persisted? m)]}
-  #_ (println "save-dependants" entity-kw)
+  (log "save-dependants" relation-kw "->" entity-kw)
   (let [m-id (:id m)
         m-entity-kw (::entity m)
         dependants (let [update-fn (-> er-config entity-kw :fns :update)
@@ -452,7 +470,7 @@
 (defn save!
   "Saves an aggregate data structure to the database."
   [er-config db-spec entity-kw m]
-  #_ (println "save" entity-kw)
+  (log "save" entity-kw)
   (when m
     ;; first process all records linked with a :one> relation-type
     ;; because we need their ids as foreign keys in m
@@ -511,6 +529,7 @@
   "Removes an aggregate datastructure from the database.
   Returns the number of deleted records."
   [er-config db-spec entity-kw m-or-id]
+  (log "delete" entity-kw)
   (if m-or-id
     (let [delete-fn (-> er-config entity-kw :fns :delete)]
       (if (map? m-or-id)

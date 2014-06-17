@@ -6,6 +6,20 @@
 
 (use-fixtures :each db-fixture)
 
+
+;; -------------------------------------------------------------------
+;; Misc tests
+
+
+(deftest without-test
+  (let [er {:project {:relations {:tasks {}
+                                  :members {}
+                                  :customer {}}}}]
+    (is (= {}
+           (-> er (agg/without :project))))
+    (is (= {:project {:relations {:tasks {}}}}
+           (-> er (agg/without [:project :members :customer]))))))
+
 ;; -------------------------------------------------------------------
 ;; Tests on the simple schema
 
@@ -297,7 +311,7 @@
                                    :entity-kw :person
                                    :query-fn (agg/make-query-<many>-fn :person
                                                                        :project_person
-                                                                       :person_id :project_id)
+                                                                       :project_id :person_id)
                                    :update-links-fn (agg/make-update-links-fn :project_person
                                                                               :project_id :person_id)
                                    :owned? false}}}
@@ -306,7 +320,7 @@
                                    :entity-kw :project
                                    :query-fn (agg/make-query-<many>-fn :project
                                                                        :project_person
-                                                                       :project_id :person_id)
+                                                                       :person_id :project_id)
                                    :update-links-fn (agg/make-update-links-fn :project_person
                                                                               :person_id :project_id)
                                    :owned? false}}}})

@@ -55,7 +55,6 @@
 
 ;; To setup a schema in standalone H2
 #_ (do (require '[aggregate.h2 :as h2])
-       (require '[aggregate.core :as agg])
        (h2/start-db))
 
 #_ (create-schema! @h2/db-con schema)
