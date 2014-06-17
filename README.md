@@ -28,7 +28,7 @@ to tables of a relational DB?
 Not a big deal... unless you have to write similar DB access code over
 and over again for your whole set of domain objects. This library will
 do the hard work for you after you have provided some meta data about
-the relations among database tables.
+the relations between database tables.
 
 Besides being helpful for persisting complex data in relational tables
 it is meant to be composable with SQL-oriented libraries like
@@ -45,7 +45,8 @@ Include this in your namespace declaration:
 
 Or for testing in the REPL execute
 ```clojure
-(require '[aggregate.core :as agg])
+(do (require '[aggregate.core :as agg])
+    (require '[aggregate.testsupport :refer :all]))
 ```
 
 
@@ -145,7 +146,6 @@ As a test scoped dependency H2 is available:
 
 ```clojure
 (do (require '[aggregate.h2 :as h2])
-    (require '[aggregate.testsupport :refer :all])
     (h2/start-db))
 ; "Starting DB, web console is available on localhost:8082"
 ;= nil
