@@ -14,11 +14,27 @@
 (deftest without-test
   (let [er {:project {:relations {:tasks {}
                                   :members {}
-                                  :customer {}}}}]
-    (is (= {}
+                                  :customer {}}}
+            :task {:relations {:project {}}}}]
+    (is (= {:task {:relations {:project {}}}}
            (-> er (agg/without :project))))
     (is (= {:project {:relations {:tasks {}}}}
-           (-> er (agg/without [:project :members :customer]))))))
+           (-> er (agg/without [:project :members :customer] :task))))))
+
+
+(deftest only-test
+  (let [er {:project {:relations {:tasks {}
+                                  :members {}
+                                  :customer {}}}
+            :task {:relations {:project {}}}}]
+    (is (= {:project {:relations {}}
+            :task {:relations {:project {}}}}
+           (-> er (agg/only [:project]))))
+    (is (= {:project {:relations {:members {}
+                                  :customer {}}}
+            :task {:relations {}}}
+           (-> er (agg/only [:project :members :customer]
+                            [:task]))))))
 
 ;; -------------------------------------------------------------------
 ;; Tests on the simple schema

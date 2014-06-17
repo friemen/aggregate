@@ -278,19 +278,31 @@
   [m ks]
   (apply (partial dissoc m) ks))
 
-
 (defn without
   "Removes entities (specified by a keyword) and relations (specified
   in a vector, where the first item is the entity keyword) from the er-config."
-  [er-config & entities-or-entity-relation-pairs]
+  [er-config & entities-or-entity-relation-seqs]
   (reduce (fn [er-config k-or-ks]
             (if (coll? k-or-ks)
               (update-in er-config [(first k-or-ks) :relations] dissoc-ks (rest k-or-ks))
               (dissoc er-config k-or-ks)))
           er-config
-          entities-or-entity-relation-pairs))
+          entities-or-entity-relation-seqs))
 
+(defn- keep-ks
+  [m ks]
+  (let [ks-set (set ks)]
+    (into {} (filter (comp ks-set first) m))))
 
+(defn only
+  "Removes all relations that are NOT specified by the vectors.
+  A vector must begin with an entity-kw, all remaining items denote
+  relations."
+  [er-config & entity-relation-seqs]
+  (reduce (fn [er-config ks]
+            (update-in er-config [(first ks) :relations] keep-ks (rest ks)))
+          er-config
+          entity-relation-seqs))
 
 ;;--------------------------------------------------------------------
 ;; Common utility functions for the big three load, save! and delete!

@@ -26,6 +26,8 @@
 
 
 (def er
+  "The complete entity-relationship model.
+  Be careful, using this directly may take the complete database into account."
   (agg/make-er-config
    (agg/entity :customer {}
                (agg/->n :projects :project {:fk-kw :customer_id}))
@@ -51,6 +53,16 @@
    (agg/entity :task {}
                (agg/->1 :project :project {:owned? false})
                (agg/->1 :assignee :person {:owned? false}))))
+
+
+(def manage-person-to-project-er
+  (-> er (agg/only [:person]
+                   [:project :members :manager])))
+
+(def manage-task-to-person-er
+  "Supports task-to-person assignment, cutting off project related links."
+  (-> er (agg/without [:task :project]
+                      [:person :projects_as_member :projects_as_manager])))
 
 
 ;; To setup a schema in standalone H2
@@ -81,17 +93,19 @@
                                               {:id 2 :name "Mini"}]
                                     :manager {:id 1 :name "Daisy"}})]
       (is (= 1 (record-count @db-con :project)))
-      (testing "Assign tasks to persons"
-        (let [assign-task-er (-> er
-                                 (agg/without [:task :project]
-                                              [:person :projects_as_member :projects_as_manager]))
-              loaded-task (->> (agg/load assign-task-er @db-con :task 1)
-                               (#(assoc % :assignee {:id 2 :name "Mini"}))
-                               (agg/save! assign-task-er @db-con :task))])
+      (testing "Assign persons to projects"
+        (->> (agg/load manage-person-to-project-er @db-con :project 1)
+             (#(update-in % [:members] conj {:id 3 :name "Mickey"}))
+             (agg/save! manage-person-to-project-er @db-con :project)))
+      (testing "Assign person to task"
+        (->> (agg/load manage-task-to-person-er @db-con :task 1)
+             (#(assoc % :assignee {:id 2 :name "Mini"}))
+             (agg/save! manage-task-to-person-er @db-con :task))
         (let [loaded-project (agg/load er @db-con :project 1) 
               loaded-daisy (agg/load er @db-con :person 1)
               loaded-mini (agg/load er @db-con :person 2)]
           (is (-> loaded-project :customer))
+          (is (= 3 (-> loaded-project :members count)))
           (is (= 1 (-> loaded-daisy :projects_as_member count)))
           (is (= 1 (-> loaded-daisy :projects_as_manager count)))
           (is (= 0 (-> loaded-daisy :tasks count)))
