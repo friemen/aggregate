@@ -34,9 +34,15 @@ Besides being helpful for persisting complex data in relational tables
 it is meant to be composable with SQL-oriented libraries like
 [Yesql](https://github.com/krisajenkins/yesql),
 [HoneySQL](https://github.com/jkk/honeysql) or plain
-[clojure.java.jdbc](https://github.com/clojure/java.jdbc).
+[clojure.java.jdbc](https://github.com/clojure/java.jdbc) in two ways.
+First, you can use aggregate `load`, `save!` and `delete!` only for
+those cases where you have nested data, and use functions based on
+other libraries for unnested data. Second, you can exchange the
+default DB access functions that aggregate provides with your own
+implementations based on other libraries.
 
-## A first glimpse
+
+## A first impression
 
 Include this in your namespace declaration:
 ```clojure
@@ -52,9 +58,9 @@ Or for testing in the REPL execute
 
 The library mainly provides three functions
 
-* `(load er-config db-spec entity-keyword id)`
-* `(save! er-config db-spec entity-keyword data)`
-* `(delete! er-config db-spec entity-keyword data)`
+* `(agg/load er-config db-spec entity-keyword id)`
+* `(agg/save! er-config db-spec entity-keyword data)`
+* `(agg/delete! er-config db-spec entity-keyword data)`
 
 
 The `er-config` describes *relations* between *entities*, and contains
@@ -213,10 +219,10 @@ We can load a single task, without materializing it's project by using the narro
 ```clojure
 (agg/load manage-task-to-person-er @h2/db-con :task 1)
 ;= {:aggregate.core/entity :task,
-    :id 1,
-    :project_id 2,
-	:effort 1,
-	:desc "Buy a good book"}
+;   :id 1,
+;   :project_id 2,
+;   :effort 1,
+;	:desc "Buy a good book"}
 ```
 
 And we can delete the project, and with it all it's owned entities and links to it:
@@ -255,28 +261,24 @@ These functions are provided in the entity options map. Example:
 As you can see four functions are expected: read, insert, update and delete.
 
 
-`(fn read [db-spec id])`
-
-Takes a db-spec and the value for the primary key and reads exactly one row.
-Returns a map with row data, or nil if the row doesn't exist.
-
-
-`(fn insert [db-spec row-map])` 
-
-Takes a db-spec and a map with row data, insert the row into the DB
-and returns the row-map augmented with a :id value.
+`(fn read [db-spec id])` Takes a db-spec and the value for the primary
+key and reads exactly one row.  Returns a map with row data, or nil if
+the row doesn't exist.
 
 
-`(fn update [db-spec set-map])`
+`(fn insert [db-spec row-map])` Takes a db-spec and a map with row
+data, insert the row into the DB and returns the row-map augmented
+with a :id value.
 
-Takes a db-spec and a map with keys and values to set, and updates
-the row in the DB and returns the set-map.
+
+`(fn update [db-spec set-map])` Takes a db-spec and a map with keys
+and values to set, and updates the row in the DB and returns the
+set-map.
 
 
-`(fn delete [db-spec id])`
-
-Takes a db-spec and the value for the primary key and deletes exactly
-one row. Returns nil if the record was not deleted, else returns 1.
+`(fn delete [db-spec id])` Takes a db-spec and the value for the
+primary key and deletes exactly one row. Returns nil if the record was
+not deleted, else returns 1.
 
 
 ### Relation level functions
@@ -295,17 +297,13 @@ second needs to select on a join of the link table with the requested
 entity table.
 
 
-`(fn query-by-fk [db-spec fk-id])`
-
-Takes a db-spec and a value for a foreign key and returns a sequence
-of all rows containing the fk-id.
+`(fn query-by-fk [db-spec fk-id])` Takes a db-spec and a value for a
+foreign key and returns a sequence of all rows containing the fk-id.
 
 
-`(fn update-links [db-spec a-id bs])`
-
-Takes a db-spec, the value for a foreign key a-id and all rows that are
-linked to the entity identified by a-id and inserts all link-rows into
-the link table.
+`(fn update-links [db-spec a-id bs])` Takes a db-spec, the value for a
+foreign key a-id and all rows that are linked to the entity identified
+by a-id and inserts all link-rows into the link table.
 
 
 
