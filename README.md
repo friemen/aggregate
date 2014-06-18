@@ -93,7 +93,7 @@ The corresponding schema definition looks like this
 ```
 
 The ids are auto generated integers, and the foreign keys establish
-referential integriy. Please note that schema definition / evolution
+referential integrity. Please note that schema definition / evolution
 is out of aggregate's scope, and just included for testing purposes.
 
 What follows is a global er-config that enables `load`, `save!` and
@@ -248,10 +248,10 @@ The er-config is only a map of the form
 
 Each entity is represented by it's entity-kw and a corresponding
 map. Each of these entity maps contains general options, for example
-the functions in :fns to be used for read, insert, update and delete,
+the functions in `:fns` to be used for read, insert, update and delete,
 and a map of relations.
 
-Each relation consists of it's relation keyword, as it is used in
+Each relation consists of it's relation-kw, as it is used in
 concrete data, and options. The options depend on the type of the
 relation. The mandatory `:relation-type` must have one of the values
 `:one>`, `:<many` or `:<many>`. The other mandatory entry is the
@@ -262,7 +262,7 @@ entities)`. An entity is created by `(agg/entity entity-kw options-map
 relations)`. A relation is created with one of three functions `->1`,
 `->n` and `->mn`, whose names denote the type of the relation.
 
-The following sections show type-wise how to specify a relations.
+The following sections show type-wise how to specify relations.
 
 ### Relation type :one>
 
@@ -331,8 +331,6 @@ what each of the functions does.
 
 ### load
 
-Usage:
-
 ```clojure
 (agg/load er-config db-spec entity-keyword id)
 ;; or
@@ -349,8 +347,6 @@ the `::agg/entity` slot.
 
 
 ### save!
-
-Usage:
 
 ```clojure
 (agg/save! er-config db-spec entity-keyword data)
@@ -382,8 +378,6 @@ the link records from the link table.
 
 
 ### delete!
-
-Usage:
 
 ```clojure
 (agg/delete! er-config db-spec entity-keyword data)
