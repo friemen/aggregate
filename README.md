@@ -136,9 +136,9 @@ functions that comply to the contract. Where you don't specify your own
 function a default is provided.
 
 The er-config above is complete, but it's dangerous because any
-operation on a project might affect the whole database. So in order to
-just take the necessary relationships into account we can narrow the
-er-config down to support certain use cases.
+operation on a project might affect surprisingly large chunks of
+data. So in order to just take the necessary relationships into
+account we can narrow the er-config down to support certain use cases.
 
 ```clojure
 (def manage-person-to-project-er
@@ -237,18 +237,100 @@ And we can delete the project, and with it all it's owned entities and links to 
 ;= 4
 ```
 
-## Supported types of relations and their configuration
+## Entity-Relation Configuration
+
+The er-config is only a map of the form
+
+```
+{<entity-kw> {:fns {}
+              :relations {<relation-kw> {}}}}
+```
+
+Each entity is represented by it's entity-kw and a corresponding
+map. Each of these entity maps contains general options, for example
+the functions in :fns to be used for read, insert, update and delete,
+and a map of relations.
+
+Each relation consists of it's relation keyword, as it is used in
+concrete data, and options. The options depend on the type of the
+relation. The mandatory `:relation-type` must have one of the values
+`:one>`, `:<many` or `:<many>`. The other mandatory entry is the
+`:entity-kw` which points to another entity in the er-config.
+
+You can concisely create an er-config map using `(agg/make-er-config
+entities)`. An entity is created by `(agg/entity entity-kw options-map
+relations)`. A relation is created with one of three functions, whose
+names denote the type of the relation.
+
+The following sections show how to specify a relation of a certain type.
 
 ### ->1
-TODO
+
+![->1](images/1.png)
+
+You define a *to-one* relationship using
+`(agg/->1 <relation-kw> <entity-kw> <options-map>?)`.
+
+Optional values within options-map are
+* `:owned?` A boolean, true by default. Signals if records reachable
+  through this relation are considered a part, i.e. if the whole is
+  deleted the parts vanish, and if the whole no longer references a
+  part it will also vanish.
+* `:fk-kw` A keyword specifying the column name of the foreign key
+  column whose value points to a record in the other table. Default value
+  is `<relation-kw>_id`.
 
 ### ->n
-TODO
+
+![->n](images/n.png)
+
+You define a *to-many* relationship using
+`(agg/->n <relation-kw> <entity-kw> <options-map>?)`.
+
+Optional values within options-map are
+* `:owned?` A boolean, true by default. Signals if records reachable
+  through this relation are considered a part, i.e. if the whole is
+  deleted the parts vanish, and if the whole no longer references a
+  part it will also vanish.
+* `:fk-kw` A keyword specifying column name of the the other tables
+  foreign key column whose values point to a record in this entity's
+  table. Default value is `:owner_id`.
+* `:query-fn` A function `(fn [db-spec fk-id])` returning the sequence
+  of linked records. Defaults to `(make-query-<many-fn entity-kw fk-kw)`.
 
 ### ->mn
-TODO
 
-## How load works
+![->mn](images/mn.png)
+
+You define a *many-to-many* relationship with a link table using
+`(agg/->mn <relation-kw> <entity-kw> <options-map>?)`.
+
+Optional values within options-map are
+* `:owned?` A boolean, false by default. Signals if records reachable
+  through this relation are considered a part, i.e. if the whole is
+  deleted the parts vanish, and if the whole no longer references a
+  part it will also vanish.
+* `:query-fn` A function `(fn [db-spec fk-id])` returning the sequence
+  of linked records. Defaults to `(make-query-<many>-fn entity-kw
+  (default-link-tablename parent-entity-kw entity-kw) fk-a-kw
+  fk-b-kw)`.
+* `:update-links-fn` A function `(fn [db-spec a-id bs])` that takes
+  this records id and a sequence of saved records and inserts all link
+  records in a link table. Defaults to `(make-update-links-fn
+  (default-link-tablename parent-entity-kw entity-kw) fk-a-kw
+  fk-b-kw)`.
+
+## How does it work?
+
+`load`, `save!` and `delete!` are complex, recursive operations whose
+effects are not easy to anticipate. The following sections explain
+what each of the functions does.
+
+### load
+
+`(agg/load er-config db-spec entity-keyword id)`
+
+`(agg/load er-config db-spec data)`
 
 `load` can be used with an entity keyword and an id, or a preloaded data
 map containing the entity keyword in the slot `::agg/entity`.
@@ -259,7 +341,11 @@ rows. Loaded maps are augmented with a corresponding entity keyword in
 the `::agg/entity` slot.
 
 
-## How save! works
+### save!
+
+`(agg/save! er-config db-spec entity-keyword data)`
+
+`(agg/save! er-config db-spec data)`
 
 `save!` either takes an entity keyword and the data, or only the data
 containing the entity keyword in `::agg/entity`.
@@ -278,13 +364,17 @@ Afterwards all records reachable through `->n` and `->mn` relations
 (which might need the id of the current record as value for a foreign
 key) are saved. It queries the database to detect orphans. In an
 `owned?` relation all records NOT contained in the nested vector will
-be deleted from the database. In non-owned relations the orhpans will
+be deleted from the database. In non-owned relations the orphans will
 be updated, in case of a `->n` relation by nilling the foreign key
 value pointing to the current record, in case of a `->mn` by removing
 the link records from the link table.
 
 
-## How delete! works
+### delete!
+
+`(agg/delete! er-config db-spec entity-keyword data)`
+
+`(agg/delete! er-config db-spec data)`
 
 `delete!` either takes an entity keyword and the data, or only the data
 containing the entity keyword in `::agg/entity`.

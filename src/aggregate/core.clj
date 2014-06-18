@@ -3,6 +3,7 @@
   (:require [clojure.java.jdbc :as jdbc]))
 
 ;; TODO
+;; - Introduce logging
 ;; - Make detection if insert or update is necessary
 ;;   configurable by using a function
 ;; - Create 3 test namespaces with more realistic examples
