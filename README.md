@@ -259,16 +259,17 @@ relation. The mandatory `:relation-type` must have one of the values
 
 You can concisely create an er-config map using `(agg/make-er-config
 entities)`. An entity is created by `(agg/entity entity-kw options-map
-relations)`. A relation is created with one of three functions, whose
-names denote the type of the relation.
+relations)`. A relation is created with one of three functions `->1`,
+`->n` and `->mn`, whose names denote the type of the relation.
 
-The following sections show how to specify a relation of a certain type.
+The following sections show type-wise how to specify a relations.
 
 ### Relation type :one>
 
 ![->1](images/1.png)
 
 You define a *to-one* relationship using
+
 `(agg/->1 <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
@@ -285,6 +286,7 @@ Optional values within options-map are
 ![->n](images/n.png)
 
 You define a *to-many* relationship using
+
 `(agg/->n <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
@@ -298,11 +300,12 @@ Optional values within options-map are
   deleted the parts vanish, and if the whole no longer references a
   part it will also vanish.
 
-### Relation type :<many>
+### Relation type :&lt;many&gt;
 
 ![->mn](images/mn.png)
 
-You define a *many-to-many* relationship with a link table using
+You define a *many-to-many* relationship relying on a link-table using
+
 `(agg/->mn <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
@@ -328,9 +331,13 @@ what each of the functions does.
 
 ### load
 
-`(agg/load er-config db-spec entity-keyword id)`
+Usage:
 
-`(agg/load er-config db-spec data)`
+```clojure
+(agg/load er-config db-spec entity-keyword id)
+;; or
+(agg/load er-config db-spec data)
+```
 
 `load` can be used with an entity keyword and an id, or a preloaded data
 map containing the entity keyword in the slot `::agg/entity`.
@@ -343,9 +350,13 @@ the `::agg/entity` slot.
 
 ### save!
 
-`(agg/save! er-config db-spec entity-keyword data)`
+Usage:
 
-`(agg/save! er-config db-spec data)`
+```clojure
+(agg/save! er-config db-spec entity-keyword data)
+;; or
+(agg/save! er-config db-spec data)
+```
 
 `save!` either takes an entity keyword and the data, or only the data
 containing the entity keyword in `::agg/entity`.
@@ -372,9 +383,13 @@ the link records from the link table.
 
 ### delete!
 
-`(agg/delete! er-config db-spec entity-keyword data)`
+Usage:
 
-`(agg/delete! er-config db-spec data)`
+```clojure
+(agg/delete! er-config db-spec entity-keyword data)
+;; or 
+(agg/delete! er-config db-spec data)
+```
 
 `delete!` either takes an entity keyword and the data, or only the data
 containing the entity keyword in `::agg/entity`.
