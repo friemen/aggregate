@@ -98,7 +98,7 @@
       (testing "Assign persons to projects"
         (->> (agg/load manage-person-to-project-er @db-con :project 1)
              (#(update-in % [:members] conj {:id 3 :name "Mickey"}))
-             (agg/save! manage-person-to-project-er @db-con :project)))
+             (agg/save! manage-person-to-project-er @db-con)))
       (testing "Assign person to task"
         (->> (agg/load manage-task-to-person-er @db-con :task 1)
              (#(assoc % :assignee {:id 2 :name "Mini"}))
@@ -114,5 +114,9 @@
           (is (= 1 (-> loaded-mini :projects_as_member count)))
           (is (= 0 (-> loaded-mini :projects_as_manager count)))
           (is (= 1 (-> loaded-mini :tasks count)))))
+      (testing "Delete a person that a task points to"
+        (is (-> (agg/load manage-task-to-person-er @db-con :task 1) :assignee))
+        (agg/delete! er @db-con (agg/load er @db-con :person 2))
+        (is (nil? (-> (agg/load manage-task-to-person-er @db-con :task 1) :assignee))))
       (testing "Delete the project"
-        (agg/delete! er @db-con :project saved-project)))))
+        (agg/delete! er @db-con saved-project)))))

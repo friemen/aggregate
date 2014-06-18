@@ -355,10 +355,7 @@
   (case relation-type
     :one>
     (let [child-id (get m fk-kw)
-          child (load er-config
-                      db-spec
-                      entity-kw
-                      child-id)]
+          child (load er-config db-spec entity-kw child-id)]
       (if child
         (assoc m relation-kw child)
         (dissoc m relation-kw fk-kw)))
@@ -481,25 +478,28 @@
 
 (defn save!
   "Saves an aggregate data structure to the database."
-  [er-config db-spec entity-kw m]
-  (log "save" entity-kw)
-  (when m
-    ;; first process all records linked with a :one> relation-type
-    ;; because we need their ids as foreign keys in m
-    (let [relations (-> er-config entity-kw :relations)
-          update-fn (-> er-config entity-kw :fns :update)
-          m (->> relations
-                 (filter (partial rt? :one>))
-                 (filter (partial rr? er-config))
-                 (reduce (partial save-prerequisite! (dissoc er-config entity-kw) db-spec update-fn) m)
-                 ;; this will persist m itself (containing all foreign keys)
-                 (ins-or-up! er-config db-spec entity-kw))]
-      ;; process all other types of relations
-      ;; that require m's id as value for the foreign key
-      (->> relations
-           (remove (partial rt? :one>))
-           (filter (partial rr? er-config))
-           (reduce (partial save-dependants! (dissoc er-config entity-kw) db-spec) m)))))
+  ([er-config db-spec m]
+     {:pre [(::entity m)]}
+     (save! er-config db-spec (::entity m) m))
+  ([er-config db-spec entity-kw m]
+     (log "save" entity-kw)
+     (when m
+       ;; first process all records linked with a :one> relation-type
+       ;; because we need their ids as foreign keys in m
+       (let [relations (-> er-config entity-kw :relations)
+             update-fn (-> er-config entity-kw :fns :update)
+             m (->> relations
+                    (filter (partial rt? :one>))
+                    (filter (partial rr? er-config))
+                    (reduce (partial save-prerequisite! (dissoc er-config entity-kw) db-spec update-fn) m)
+                    ;; this will persist m itself (containing all foreign keys)
+                    (ins-or-up! er-config db-spec entity-kw))]
+         ;; process all other types of relations
+         ;; that require m's id as value for the foreign key
+         (->> relations
+              (remove (partial rt? :one>))
+              (filter (partial rr? er-config))
+              (reduce (partial save-dependants! (dissoc er-config entity-kw) db-spec) m))))))
                                        
 
 ;;--------------------------------------------------------------------
@@ -531,7 +531,13 @@
                        (map (partial delete! er-config db-spec entity-kw))
                        (map nil->0)
                        (apply +))
-                  0)]
+                  (if (= relation-type :<many)
+                    (let [update-fn (-> er-config entity-kw :fns :update)]
+                      (->> (get m relation-kw)
+                           (map #(update-fn db-spec {:id (:id %) fk-kw nil}))
+                           doall)
+                      0)
+                    0))]
     (when (= relation-type :<many>)
       (update-links-fn db-spec (:id m) []))
     deleted))
@@ -540,25 +546,28 @@
 (defn delete!
   "Removes an aggregate datastructure from the database.
   Returns the number of deleted records."
-  [er-config db-spec entity-kw m-or-id]
-  (log "delete" entity-kw)
-  (if m-or-id
-    (let [delete-fn (-> er-config entity-kw :fns :delete)]
-      (if (map? m-or-id)
-        (let [;; delete all records that might point to m
-              deleted-dependants (->> er-config entity-kw :relations
-                                      (remove (partial rt? :one>))
-                                      (map (partial delete-dependants! er-config db-spec m-or-id))
-                                      (map nil->0)
-                                      (apply +))
-              ;; delete the record
-              deleted-m (delete-fn db-spec (:id m-or-id))
-              ;; delete all owned records that m points to via foreign key
-              deleted-prerequisites (->> er-config entity-kw :relations
-                                         (filter (partial rt? :one>))
-                                         (map (partial delete-prerequisite! er-config db-spec m-or-id))
+  ([er-config db-spec m]
+     {:pre [(::entity m)]}
+     (delete! er-config db-spec (::entity m) m))
+  ([er-config db-spec entity-kw m-or-id]
+     (log "delete" entity-kw)
+     (if m-or-id
+       (let [delete-fn (-> er-config entity-kw :fns :delete)]
+         (if (map? m-or-id)
+           (let [;; delete all records that might point to m
+                 deleted-dependants (->> er-config entity-kw :relations
+                                         (remove (partial rt? :one>))
+                                         (map (partial delete-dependants! er-config db-spec m-or-id))
                                          (map nil->0)
-                                         (apply +))]
-          (+ deleted-dependants deleted-m deleted-prerequisites))
-        (delete-fn db-spec m-or-id)))
-    0))
+                                         (apply +))
+                 ;; delete the record
+                 deleted-m (delete-fn db-spec (:id m-or-id))
+                 ;; delete all owned records that m points to via foreign key
+                 deleted-prerequisites (->> er-config entity-kw :relations
+                                            (filter (partial rt? :one>))
+                                            (map (partial delete-prerequisite! er-config db-spec m-or-id))
+                                            (map nil->0)
+                                            (apply +))]
+             (+ deleted-dependants deleted-m deleted-prerequisites))
+           (delete-fn db-spec m-or-id)))
+       0)))

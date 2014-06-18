@@ -58,16 +58,17 @@ Or for testing in the REPL execute
 
 The library mainly provides three functions
 
-* `(agg/load er-config db-spec entity-keyword id)`
-* `(agg/save! er-config db-spec entity-keyword data)`
-* `(agg/delete! er-config db-spec entity-keyword data)`
+* `(agg/load er-config db-spec entity-keyword id)` or `(agg/load er-config db-spec data)`
+* `(agg/save! er-config db-spec entity-keyword data)` or `(agg/save! er-config db-spec data)`
+* `(agg/delete! er-config db-spec entity-keyword data)` or `(agg/delete! er-config db-spec data)`
 
 
 The `er-config` describes *relations* between *entities*, and contains
-functions that actually read, insert, update or delete records.
+functions that actually read, insert, update or delete records. The
+`db-spec` is exactly what is described in
+[get-connection](http://clojure.github.io/java.jdbc/#clojure.java.jdbc/get-connection).
 
-Here's an example. To ease understanding the following picture gives
-an overview of a bunch of tables and their relations:
+Here's an example with a bunch of tables and their relations:
 
 ![Project Example](images/project-example.png)
 
@@ -91,8 +92,12 @@ The corresponding schema definition looks like this
                     (fk-column :person false)]])
 ```
 
-What follows is a global er-config that enables load, save! and delete!
-to take the relationships into account.
+The ids are auto generated integers, and the foreign keys establish
+referential integriy. Please note that schema definition / evolution
+is out of aggregate's scope, and just included for testing purposes.
+
+What follows is a global er-config that enables `load`, `save!` and
+`delete!` to take the relationships into account.
 
 ```clojure
 (def er
@@ -164,7 +169,7 @@ Setup a schema
 ;= [0]
 ```
 
-A save! could look like this:
+A `save!` could look like this:
 ```clojure
 (def project (agg/save! er @h2/db-con :project
                                    {:name "Learning Clojure"
@@ -232,10 +237,80 @@ And we can delete the project, and with it all it's owned entities and links to 
 ;= 4
 ```
 
+## Supported types of relations and their configuration
+
+### ->1
+TODO
+
+### ->n
+TODO
+
+### ->mn
+TODO
+
+## How load works
+
+`load` can be used with an entity keyword and an id, or a preloaded data
+map containing the entity keyword in the slot `::agg/entity`.
+
+It iterates all relations that can be found in the er-config relations
+map for the entity and recursively loads the data of connected
+rows. Loaded maps are augmented with a corresponding entity keyword in
+the `::agg/entity` slot.
+
+
+## How save! works
+
+`save!` either takes an entity keyword and the data, or only the data
+containing the entity keyword in `::agg/entity`.
+
+To take foreign key constraints into account it will first recursively
+save all nested data of `->1` relations, because the resulting ids
+will be included in the current record. If a nested map is missing,
+although it's foreign key value is present then the foreign key value
+is nilled. If the relation is `owned?` then the record itself is
+deleted from the database.
+
+Then it actually inserts or updates the current record, depending
+whether the record has an :id value set or not.
+
+Afterwards all records reachable through `->n` and `->mn` relations
+(which might need the id of the current record as value for a foreign
+key) are saved. It queries the database to detect orphans. In an
+`owned?` relation all records NOT contained in the nested vector will
+be deleted from the database. In non-owned relations the orhpans will
+be updated, in case of a `->n` relation by nilling the foreign key
+value pointing to the current record, in case of a `->mn` by removing
+the link records from the link table.
+
+
+## How delete! works
+
+`delete!` either takes an entity keyword and the data, or only the data
+containing the entity keyword in `::agg/entity`.
+
+To take the foreign key constraints into account it will first
+recursively delete all records reachable through owned `->n` and
+`->mn` relations to make sure those don't contain foreign keys to the
+current record. In the non-owned cases only the foreign keys will be
+nilled and the link records will be removed, respectively.
+
+Then the current record is deleted from the database.
+
+Afterwards all records reachable through `->1` relations that the
+current record pointed to are recursively deleted.
+
+`delete!` can only work this way for those records whose data is
+actually loaded. If you only provide an id to `delete!` it will just
+delete the record, but doesn't delete related records. If, however,
+you just want to delete by id and don't want to load data to traverse
+the whole graph, DB level "cascade on delete" might be an option to look
+at.
+
 
 ## Custom DB access functions
 
-The functions load, save! and delete! don't access the DB directly,
+The functions `load`, `save!` and `delete!` don't access the DB directly,
 instead they rely on a set of functions that are defined within the
 er-config. Although `make-er-config` provides default implementations,
 it is perfectly reasonable to use your own functions if you have
@@ -261,22 +336,22 @@ These functions are provided in the entity options map. Example:
 As you can see four functions are expected: read, insert, update and delete.
 
 
-`(fn read [db-spec id])` Takes a db-spec and the value for the primary
-key and reads exactly one row.  Returns a map with row data, or nil if
+`(fn read [db-spec id])` takes a db-spec and the value for the primary
+key and reads exactly one row.  It returns a map with row data, or nil if
 the row doesn't exist.
 
 
-`(fn insert [db-spec row-map])` Takes a db-spec and a map with row
+`(fn insert [db-spec row-map])` takes a db-spec and a map with row
 data, insert the row into the DB and returns the row-map augmented
 with a :id value.
 
 
-`(fn update [db-spec set-map])` Takes a db-spec and a map with keys
+`(fn update [db-spec set-map])` takes a db-spec and a map with keys
 and values to set, and updates the row in the DB and returns the
 set-map.
 
 
-`(fn delete [db-spec id])` Takes a db-spec and the value for the
+`(fn delete [db-spec id])` takes a db-spec and the value for the
 primary key and deletes exactly one row. Returns nil if the record was
 not deleted, else returns 1.
 
@@ -290,18 +365,22 @@ These functions are provided in the relation options map. Example:
                             :update-links-fn update-member-links})
 ```
 
-Please note that the query-fn slot requires fundamentally different
-implementations depending on the type of relation (either `->n` or
-`->mn`).  The former needs to do a simple select by a foreign key, the
-second needs to select on a join of the link table with the requested
-entity table.
+Please note that, depending on the type of relation (either `->n` or
+`->mn`), the query-fn slot requires fundamentally different
+implementations. The former needs to do a simple select by a foreign
+key, the second needs to select on a join of the link table with the
+requested entity table.
+
+In case of a 1-to-n (or `->n`) relation only query-fn must be present,
+in case of a n-to-m (or `->mn`) relation realized over a link table
+both, query-fn and update-links-fn, must be present.
 
 
-`(fn query-by-fk [db-spec fk-id])` Takes a db-spec and a value for a
+`(fn query-by-fk [db-spec fk-id])` takes a db-spec and a value for a
 foreign key and returns a sequence of all rows containing the fk-id.
 
 
-`(fn update-links [db-spec a-id bs])` Takes a db-spec, the value for a
+`(fn update-links [db-spec a-id bs])` takes a db-spec, the value for a
 foreign key a-id and all rows that are linked to the entity identified
 by a-id and inserts all link-rows into the link table.
 
