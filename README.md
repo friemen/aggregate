@@ -264,7 +264,7 @@ names denote the type of the relation.
 
 The following sections show how to specify a relation of a certain type.
 
-### ->1
+### Relation type :one>
 
 ![->1](images/1.png)
 
@@ -272,15 +272,15 @@ You define a *to-one* relationship using
 `(agg/->1 <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
+* `:fk-kw` A keyword specifying the column name of the foreign key
+  column whose value points to a record in the other table. Default value
+  is `<relation-kw>_id`.
 * `:owned?` A boolean, true by default. Signals if records reachable
   through this relation are considered a part, i.e. if the whole is
   deleted the parts vanish, and if the whole no longer references a
   part it will also vanish.
-* `:fk-kw` A keyword specifying the column name of the foreign key
-  column whose value points to a record in the other table. Default value
-  is `<relation-kw>_id`.
 
-### ->n
+### Relation type :<many
 
 ![->n](images/n.png)
 
@@ -288,17 +288,17 @@ You define a *to-many* relationship using
 `(agg/->n <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
-* `:owned?` A boolean, true by default. Signals if records reachable
-  through this relation are considered a part, i.e. if the whole is
-  deleted the parts vanish, and if the whole no longer references a
-  part it will also vanish.
 * `:fk-kw` A keyword specifying column name of the the other tables
   foreign key column whose values point to a record in this entity's
   table. Default value is `:owner_id`.
 * `:query-fn` A function `(fn [db-spec fk-id])` returning the sequence
   of linked records. Defaults to `(make-query-<many-fn entity-kw fk-kw)`.
+* `:owned?` A boolean, true by default. Signals if records reachable
+  through this relation are considered a part, i.e. if the whole is
+  deleted the parts vanish, and if the whole no longer references a
+  part it will also vanish.
 
-### ->mn
+### Relation type :<many>
 
 ![->mn](images/mn.png)
 
@@ -306,10 +306,6 @@ You define a *many-to-many* relationship with a link table using
 `(agg/->mn <relation-kw> <entity-kw> <options-map>?)`.
 
 Optional values within options-map are
-* `:owned?` A boolean, false by default. Signals if records reachable
-  through this relation are considered a part, i.e. if the whole is
-  deleted the parts vanish, and if the whole no longer references a
-  part it will also vanish.
 * `:query-fn` A function `(fn [db-spec fk-id])` returning the sequence
   of linked records. Defaults to `(make-query-<many>-fn entity-kw
   (default-link-tablename parent-entity-kw entity-kw) fk-a-kw
@@ -319,6 +315,10 @@ Optional values within options-map are
   records in a link table. Defaults to `(make-update-links-fn
   (default-link-tablename parent-entity-kw entity-kw) fk-a-kw
   fk-b-kw)`.
+* `:owned?` A boolean, false by default. Signals if records reachable
+  through this relation are considered a part, i.e. if the whole is
+  deleted the parts vanish, and if the whole no longer references a
+  part it will also vanish.
 
 ## How does it work?
 
