@@ -17,12 +17,13 @@
              (fk-column :person :manager_id false)
              (fk-column :customer false)]
    :task [(id-column)
-          [:desc "varchar(50)"]
+          [:description "varchar(50)"]
           [:effort "integer"]
           (fk-column :project false)
           (fk-column :person :assignee_id false)]
    :person_project [(fk-column :project false)
                     (fk-column :person false)]])
+
 
 
 (def er
@@ -53,6 +54,9 @@
    (agg/entity :task {}
                (agg/->1 :project :project {:owned? false})
                (agg/->1 :assignee :person {:owned? false}))))
+
+
+
 
 
 (def manage-person-to-project-er
@@ -88,9 +92,9 @@
     (let [saved-project (agg/save! er @db-con :project
                                    {:name "Learning Clojure"
                                     :customer {:id 1 :name "Big Company"}
-                                    :tasks [{:desc "Buy a good book" :effort 1}
-                                            {:desc "Install Java" :effort 2}
-                                            {:desc "Configure Emacs" :effort 4}]
+                                    :tasks [{:description "Buy a good book" :effort 1}
+                                            {:description "Install Java" :effort 2}
+                                            {:description "Configure Emacs" :effort 4}]
                                     :members [{:id 1 :name "Daisy"}
                                               {:id 2 :name "Mini"}]
                                     :manager {:id 1 :name "Daisy"}})]
@@ -120,3 +124,15 @@
         (is (nil? (-> (agg/load manage-task-to-person-er @db-con :task 1) :assignee))))
       (testing "Delete the project"
         (agg/delete! er @db-con saved-project)))))
+
+
+;; Code for PostgreSQL
+
+#_ (def con {:classname "org.postgresql.Driver"
+             :subprotocol "postgresql"
+             :subname "testdb"
+             :user "riemensc"
+             :password "test"})
+
+
+

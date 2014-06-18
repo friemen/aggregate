@@ -4,6 +4,7 @@
 
 ;; TODO
 ;; - Introduce logging
+;; - Make er-config factories configurable
 ;; - Make detection if insert or update is necessary
 ;;   configurable by using a function
 ;; - Create 3 test namespaces with more realistic examples
@@ -15,7 +16,7 @@
 ;; For testing in the REPL
 
 
-;; This will start an im-memory DB instance
+;; This will start an in-memory DB instance
 #_ (def con {:connection
              (jdbc/get-connection
               {:classname "org.h2.Driver"
@@ -68,6 +69,13 @@
 ;; Factories for default DB access functions based on clojure.java.jdbc
 
 
+(defn extract-id
+  "Extracts id value from results like ({:scope_identity() 2}) or ({:id 2, ...})."
+  [insert-result]
+  (let [record (first insert-result)]
+    (or (:id record) (-> record vals first))))
+
+
 (defn make-read-fn
   "Returns a read function [db-spec id -> row-map] for a specific table.
   It returns a single record or nil. The tablename may be passed as
@@ -88,7 +96,7 @@
     (let [id (->> (jdbc/insert! db-spec
                                 (keyword tablename)
                                 row-map)
-                  first vals first)]
+                  extract-id)]
       (assoc row-map :id id))))
 
 
