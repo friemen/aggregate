@@ -60,7 +60,7 @@
 ;; Common utilities
 
 
-(defn log
+(defn- log
   [& xs]
   #_ (apply println xs)
   xs)
@@ -200,10 +200,11 @@
   (vector relation-kw
           (case relation-type
             :one> relation
-            :<many (assoc relation
-                     :query-fn
-                     (or query-fn
-                         (make-query-<many-fn entity-kw fk-kw)))
+            :<many (let [fk-kw (or fk-kw (default-fk parent-entity-kw))]
+                     (assoc relation
+                       :fk-kw fk-kw
+                       :query-fn (or query-fn
+                                     (make-query-<many-fn entity-kw fk-kw))))
             :<many> (let [fk-a (default-fk parent-entity-kw)
                           fk-b (default-fk entity-kw)]
                       (assoc relation
@@ -265,7 +266,7 @@
   ([relation-kw entity-kw options]
      (vector relation-kw (merge {:relation-type :<many
                                  :entity-kw entity-kw
-                                 :fk-kw :owner_id
+                                 :fk-kw nil
                                  :query-fn nil
                                  :owned? true}
                                 options))))
@@ -514,13 +515,14 @@
 ;;--------------------------------------------------------------------
 ;; Delete aggregate
 
-(defn- nil->0 [n] (or n 0))
+(defn- nil->0 [n] (if (number? n) n 0))
 
 (defn- delete-prerequisite!
   "Deletes a record that m points to by a foreign key.
   Returns the number of deleted records or nil."
   [er-config db-spec m
    [relation-kw {:keys [relation-type entity-kw fk-kw owned?]}]]
+  (log "delete prerequisite" relation-kw "->" entity-kw)
   (when owned?
     (let [fk-id (get m fk-kw)
           child (get m relation-kw)]
@@ -535,6 +537,7 @@
   Returns the number of deleted records."
   [er-config db-spec m
    [relation-kw {:keys [relation-type entity-kw fk-kw update-links-fn owned?]}]]
+  (log "delete dependants" relation-kw "->" entity-kw)
   (let [deleted (if owned?
                   (->> (get m relation-kw)
                        (map (partial delete! er-config db-spec entity-kw))
@@ -570,7 +573,7 @@
                                          (map nil->0)
                                          (apply +))
                  ;; delete the record
-                 deleted-m (delete-fn db-spec (:id m-or-id))
+                 deleted-m (nil->0 (delete-fn db-spec (:id m-or-id)))
                  ;; delete all owned records that m points to via foreign key
                  deleted-prerequisites (->> er-config entity-kw :relations
                                             (filter (partial rt? :one>))

@@ -292,7 +292,7 @@ You define a *to-many* relationship using
 Optional values within options-map are
 * `:fk-kw` A keyword specifying column name of the the other tables
   foreign key column whose values point to a record in this entity's
-  table. Default value is `:owner_id`.
+  table. Default value is parent entity-kw suffixed with `_id`.
 * `:query-fn` A function `(fn [db-spec fk-id])` returning the sequence
   of linked records. Defaults to `(make-query-<many-fn entity-kw fk-kw)`.
 * `:owned?` A boolean, true by default. Signals if records reachable
