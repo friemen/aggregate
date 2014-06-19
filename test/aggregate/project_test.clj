@@ -126,13 +126,3 @@
         (agg/delete! er @db-con saved-project)))))
 
 
-;; Code for PostgreSQL
-
-#_ (def con {:classname "org.postgresql.Driver"
-             :subprotocol "postgresql"
-             :subname "testdb"
-             :user "riemensc"
-             :password "test"})
-
-
-
