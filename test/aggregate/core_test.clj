@@ -44,7 +44,6 @@
                                            (agg/->n :bs :b))
                                (agg/entity :b {:fns {:read "bum"}}
                                            (agg/->n :as :a {:query-fn "baz"})))]
-    #_(clojure.pprint/pprint er)
     (is (= "bar" (-> er :a :fns :read)))
     (is (= "foo" (-> er :a :relations :bs :query-fn)))
     (is (= "bum" (-> er :b :fns :read)))

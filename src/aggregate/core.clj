@@ -261,7 +261,7 @@
           :update-links-fn-factory make-update-links-fn} options-map))
 
 
-(defn entityspec?
+(defn- entityspec?
   "Returns true if x is a vector containing a keyword as first and a map as second item"
   [x]
   (and (vector? x)
@@ -557,6 +557,7 @@
      {:pre [(::entity m)]}
      (save! er-config db-spec (::entity m) m))
   ([er-config db-spec entity-kw m]
+     {:pre [(or (nil? m) (map? m))]}
      (log "save" entity-kw)
      (when m
        ;; first process all records linked with a :one> relation-type
