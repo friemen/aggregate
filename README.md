@@ -104,15 +104,15 @@ What follows is a global er-config that enables `load`, `save!` and
   "The complete entity-relationship model.
   Be careful, using this directly may take the complete database into account."
   (agg/make-er-config
-   (agg/entity :customer {}
+   (agg/entity :customer
                (agg/->n :projects :project {:fk-kw :customer_id}))
-   (agg/entity :person {}
+   (agg/entity :person
                (agg/->n :tasks :task {:fk-kw :assignee_id
                                       :owned? false})
                (agg/->n :projects_as_manager :project {:fk-kw :manager_id
                                                        :owned? false})
                (agg/->mn :projects_as_member :project))
-   (agg/entity :project {}
+   (agg/entity :project
                (agg/->1 :customer :customer {:owned? false})
                (agg/->mn :members :person {:query-fn (agg/make-query-<many>-fn
                                                       :person
@@ -125,7 +125,7 @@ What follows is a global er-config that enables `load`, `save!` and
                                                              :person_id)})
                (agg/->1 :manager :person {:owned? false})
                (agg/->n :tasks :task {:fk-kw :project_id}))
-   (agg/entity :task {}
+   (agg/entity :task
                (agg/->1 :project :project {:owned? false})
                (agg/->1 :assignee :person {:owned? false}))))
 ```
@@ -242,7 +242,8 @@ And we can delete the project, and with it all it's owned entities and links to 
 The er-config is only a map of the form
 
 ```
-{<entity-kw> {:fns {}
+{::agg/options {}
+ <entity-kw> {:fns {}
               :relations {<relation-kw> {}}}}
 ```
 
@@ -258,9 +259,10 @@ relation. The mandatory `:relation-type` must have one of the values
 `:entity-kw` which points to another entity in the er-config.
 
 You can concisely create an er-config map using `(agg/make-er-config
-entities)`. An entity is created by `(agg/entity entity-kw options-map
-relations)`. A relation is created with one of three functions `->1`,
-`->n` and `->mn`, whose names denote the type of the relation.
+<options-map>? <entities>*)`. An entity is created by `(agg/entity
+<entity-kw> <options-map>?  <relations>*)`. A relation is created with
+one of three functions `->1`, `->n` and `->mn`, whose names denote the
+type of the relation.
 
 The following sections show type-wise how to specify relations.
 

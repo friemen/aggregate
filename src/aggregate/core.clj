@@ -1,6 +1,7 @@
 (ns aggregate.core
   (:refer-clojure :exclude [load])
-  (:require [clojure.java.jdbc :as jdbc]))
+  (:require [clojure.java.jdbc :as jdbc]
+            [parsargs.core :as p]))
 
 ;; TODO
 ;; - Introduce logging
@@ -230,21 +231,49 @@
        (into {})))
 
 
+(defn entityspec?
+  "Returns true if x is a vector containing a keyword as first and a map as second item"
+  [x]
+  (and (vector? x)
+       (keyword? (first x))
+       (map? (second x))))
+
+
+(def ^:private er-config-parser
+  (partial p/parse
+           (p/sequence :options (p/optval map? {})
+                       :entity-specs (p/some (p/value entityspec?)))))
+
 (defn make-er-config
   "Creates a er-config map from the given entity-specs."
-  [& entity-specs]
-  (with-default-fns entity-specs))
+  [& args]
+  (let [{:keys [options entity-specs]} (er-config-parser args)]
+    (merge {::options options} (with-default-fns entity-specs))))
 
+
+(defn- relationspec?
+  "Returns true if x is a vector, where the first item is a keyword
+  and the second is a map containing :relation-type."
+  [x]
+  (and (vector? x)
+       (keyword? (first x))
+       (contains? (second x) :relation-type)))
+
+
+(def ^:private entity-parser
+  (partial p/parse
+           (p/sequence :entity-kw (p/value keyword?)
+                       :options (p/optval #(and (map? %) (nil? (:relation-type %))) {})
+                       :relation-specs (p/some (p/value relationspec?)))))
 
 (defn entity
   "Returns an entity-spec from an entity keyword, an options map and
   an arbitrary number of relation-specs. Admissible options are:
   :fns  A map with functions for :read, :insert, :update and :delete."
-  ([entity-kw]
-     (entity entity-kw {}))
-  ([entity-kw options & relation-specs]
-     (vector entity-kw (merge options
-                              {:relations (into {} relation-specs)}) )))
+  ([& args]
+     (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
+       (vector entity-kw (merge (:options options)
+                                {:relations (into {} relation-specs)}) ))))
 
 
 (defn ->1

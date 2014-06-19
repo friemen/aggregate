@@ -30,15 +30,15 @@
   "The complete entity-relationship model.
   Be careful, using this directly may take the complete database into account."
   (agg/make-er-config
-   (agg/entity :customer {}
+   (agg/entity :customer
                (agg/->n :projects :project {:fk-kw :customer_id}))
-   (agg/entity :person {}
+   (agg/entity :person
                (agg/->n :tasks :task {:fk-kw :assignee_id
                                       :owned? false})
                (agg/->n :projects_as_manager :project {:fk-kw :manager_id
                                                        :owned? false})
                (agg/->mn :projects_as_member :project))
-   (agg/entity :project {}
+   (agg/entity :project
                (agg/->1 :customer :customer {:owned? false})
                (agg/->mn :members :person {:query-fn (agg/make-query-<many>-fn
                                                       :person
@@ -51,7 +51,7 @@
                                                              :person_id)})
                (agg/->1 :manager :person {:owned? false})
                (agg/->n :tasks :task {:fk-kw :project_id}))
-   (agg/entity :task {}
+   (agg/entity :task
                (agg/->1 :project :project {:owned? false})
                (agg/->1 :assignee :person {:owned? false}))))
 

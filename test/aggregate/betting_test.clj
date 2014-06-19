@@ -23,16 +23,16 @@
 
 (def er
   (agg/make-er-config
-   (agg/entity :gambler {}
+   (agg/entity :gambler
                (agg/->n :bets :bet {:fk-kw :gambler_id}))
-   (agg/entity :match {}
+   (agg/entity :match
                (agg/->1 :team_a :team {:owned? false})
                (agg/->1 :team_b :team {:owned? false})
                (agg/->n :bets :bet {:fk-kw :match_id}))
-   (agg/entity :team {}
+   (agg/entity :team
                (agg/->n :matches_as_a :match {:fk-kw :team_a_id})
                (agg/->n :matches_as_b :match {:fk-kw :team_b_id}))
-   (agg/entity :bet {}
+   (agg/entity :bet
                (agg/->1 :gambler :gambler {:owned? false})
                (agg/->1 :match :match {:owned? false}))))
 

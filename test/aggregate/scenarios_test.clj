@@ -24,9 +24,9 @@
 
 (def er1
   (agg/make-er-config
-   (agg/entity :a {}
+   (agg/entity :a
                (agg/->n :bs :b))
-   (agg/entity :b {}
+   (agg/entity :b
                (agg/->1 :c :c))
    (agg/entity :c)))
 
