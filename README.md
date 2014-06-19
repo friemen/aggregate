@@ -486,6 +486,37 @@ foreign key a-id and all rows that are linked to the entity identified
 by a-id and inserts all link-rows into the link table.
 
 
+### Provide your own factory functions
+
+Exchanging functions on a relation or entity basis becomes cumbersome
+if you have a general mechanism to create those, in other words when
+you are able to provide your own factories.
+
+Therefore it is possible to provide your own factories in the optional
+option-map to the `make-er-config` function.
+
+Example:
+
+```clojure
+(def er (agg/make-er-config
+          {:insert-fn-factory make-insert-fn-for-weird-db}
+          (agg/entity ...)
+	      ...))
+```
+
+The valid keys and their defaults are
+```clojure
+{:read-fn-factory agg/make-read-fn
+ :insert-fn-factory agg/make-insert-fn
+ :update-fn-factory agg/make-update-fn
+ :delete-fn-factory agg/make-delete-fn
+ :query-<many-fn-factory agg/make-query-<many-fn
+ :query-<many>-fn-factory agg/make-query-<many>-fn
+ :update-links-fn-factory agg/make-update-links-fn}
+```
+
+Please see the default make-* implementations for their signatures.
+
 
 ## License
 

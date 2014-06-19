@@ -5,12 +5,9 @@
 
 ;; TODO
 ;; - Introduce logging
-;; - Make er-config factories configurable
-;; - Make detection if insert or update is necessary
-;;   configurable by using a function
-;; - Create 3 test namespaces with more realistic examples
-;; - Create a load-all function
+;; - Make detection if insert or update is necessary configurable
 ;; - Make :id keyword configurable on a per entity basis
+;; - Create a load-all function
 
 
 ;; -------------------------------------------------------------------
@@ -168,7 +165,6 @@
       (jdbc/insert! db-spec (keyword linktablename) {(keyword fk-a) a-id
                                                      (keyword fk-b) (:id b)}))))
 
-
 (defn make-entity-fns
   "Returns a map containing all four default JDBC based implementations
   for read, insert, update and delete."
@@ -195,9 +191,25 @@
   (keyword (str (name a-entity-kw) "_" (name b-entity-kw))))
 
 
+(defn with-default-entity-fns
+  "Returns a map containing all four default JDBC based implementations
+  for read, insert, update and delete."
+  [{:keys [read-fn-factory insert-fn-factory update-fn-factory delete-fn-factory]}
+   tablename
+   {:keys [read insert update delete]}]
+  {:read (or read (read-fn-factory tablename))
+   :insert (or insert (insert-fn-factory tablename))
+   :update (or update (update-fn-factory tablename))
+   :delete (or delete (delete-fn-factory tablename))})
+
+
 (defn- with-default-relation-fns
   "Returns a pair [relation-kw relation] with default functions added where missing."
-  [parent-entity-kw [relation-kw {:keys [relation-type entity-kw fk-kw query-fn update-links-fn] :as relation}]]
+  [{:keys [query-<many-fn-factory
+           query-<many>-fn-factory
+           update-links-fn-factory]}
+   parent-entity-kw
+   [relation-kw {:keys [relation-type entity-kw fk-kw query-fn update-links-fn] :as relation}]]
   (vector relation-kw
           (case relation-type
             :one> relation
@@ -205,30 +217,48 @@
                      (assoc relation
                        :fk-kw fk-kw
                        :query-fn (or query-fn
-                                     (make-query-<many-fn entity-kw fk-kw))))
+                                     (query-<many-fn-factory entity-kw fk-kw))))
             :<many> (let [fk-a (default-fk parent-entity-kw)
                           fk-b (default-fk entity-kw)]
                       (assoc relation
                         :query-fn
                         (or query-fn
-                            (make-query-<many>-fn entity-kw
-                                                  (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b))
+                            (query-<many>-fn-factory
+                             entity-kw
+                             (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b))
                         :update-links-fn
                         (or update-links-fn
-                            (make-update-links-fn (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b)))))))
+                            (update-links-fn-factory
+                             (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b)))))))
 
 
 (defn- with-default-fns
   "Returns an er-config with default functions added where missing."
   [er-config]
-  (->> er-config
-       (map (fn [[entity-kw {:keys [fns relations]}]]
-              (vector entity-kw
-                      {:fns (or fns (make-entity-fns entity-kw))
-                       :relations (->> relations
-                                       (map (partial with-default-relation-fns entity-kw))
-                                       (into {}))})))
-       (into {})))
+  (let [options-map (::options er-config)]
+    (assoc (->> er-config
+                (remove #(= ::options (first %)))
+                (map (fn [[entity-kw {:keys [fns relations] :as entity-spec}]]
+                       (vector entity-kw
+                               {:fns (with-default-entity-fns options-map entity-kw fns)
+                                :relations (->> relations
+                                                (map (partial with-default-relation-fns options-map entity-kw))
+                                                (into {}))})))
+                (into {}))
+      ::options options-map)))
+
+
+(defn- with-default-options
+  "Returns the default options, replacing defaults by entries in the
+  options-map."
+  [options-map]
+  (merge {:read-fn-factory make-read-fn
+          :insert-fn-factory make-insert-fn
+          :update-fn-factory make-update-fn
+          :delete-fn-factory make-delete-fn
+          :query-<many-fn-factory make-query-<many-fn
+          :query-<many>-fn-factory make-query-<many>-fn
+          :update-links-fn-factory make-update-links-fn} options-map))
 
 
 (defn entityspec?
@@ -245,10 +275,12 @@
                        :entity-specs (p/some (p/value entityspec?)))))
 
 (defn make-er-config
-  "Creates a er-config map from the given entity-specs."
+  "Creates a er-config map from an optional options-map and an
+  arbitrary number of entity-specs."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
-    (merge {::options options} (with-default-fns entity-specs))))
+    (with-default-fns (merge  {::options (with-default-options options)}
+                              (into {} entity-specs)))))
 
 
 (defn- relationspec?
@@ -267,13 +299,14 @@
                        :relation-specs (p/some (p/value relationspec?)))))
 
 (defn entity
-  "Returns an entity-spec from an entity keyword, an options map and
-  an arbitrary number of relation-specs. Admissible options are:
+  "Returns an entity-spec from an entity keyword, an optional
+  options-map and an arbitrary number of relation-specs. Admissible
+  options are:
   :fns  A map with functions for :read, :insert, :update and :delete."
   ([& args]
      (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
-       (vector entity-kw (merge (:options options)
-                                {:relations (into {} relation-specs)}) ))))
+       (vector entity-kw (merge {:fns (-> options :fns)}
+                                {:relations (into {} relation-specs)})))))
 
 
 (defn ->1
@@ -317,6 +350,7 @@
   [m ks]
   (apply (partial dissoc m) ks))
 
+
 (defn without
   "Removes entities (specified by a keyword) and relations (specified
   in a vector, where the first item is the entity keyword) from the er-config."
@@ -328,10 +362,12 @@
           er-config
           entities-or-entity-relation-seqs))
 
+
 (defn- keep-ks
   [m ks]
   (let [ks-set (set ks)]
     (into {} (filter (comp ks-set first) m))))
+
 
 (defn only
   "Removes all relations that are NOT specified by the vectors.

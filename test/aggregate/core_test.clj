@@ -36,6 +36,21 @@
            (-> er (agg/only [:project :members :customer]
                             [:task]))))))
 
+
+(deftest replace-default-factory-test
+  (let [er (agg/make-er-config {:read-fn-factory (constantly "bar")
+                                :query-<many-fn-factory (constantly "foo")}
+                               (agg/entity :a
+                                           (agg/->n :bs :b))
+                               (agg/entity :b {:fns {:read "bum"}}
+                                           (agg/->n :as :a {:query-fn "baz"})))]
+    #_(clojure.pprint/pprint er)
+    (is (= "bar" (-> er :a :fns :read)))
+    (is (= "foo" (-> er :a :relations :bs :query-fn)))
+    (is (= "bum" (-> er :b :fns :read)))
+    (is (= "baz" (-> er :b :relations :as :query-fn)))))
+
+
 ;; -------------------------------------------------------------------
 ;; Tests on the simple schema
 
