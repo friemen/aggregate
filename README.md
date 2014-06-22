@@ -122,7 +122,8 @@ What follows is a global er-config that enables `load`, `save!` and
                                            :update-links-fn (agg/make-update-links-fn
                                                              :person_project
                                                              :project_id
-                                                             :person_id)})
+                                                             :person_id
+															 :id)})
                (agg/->1 :manager :person {:owned? false})
                (agg/->n :tasks :task {:fk-kw :project_id}))
    (agg/entity :task

@@ -66,42 +66,43 @@
 
 (deftest read-fn-test
   (setup-minimal! @db-con)
-  (is (= {:id 1 :name "Foo"} ((agg/make-read-fn "person") @db-con 1)))
-  (is (= {:id 1 :name "Foo"} ((agg/make-read-fn :person) @db-con 1)))
-  (is (= nil ((agg/make-read-fn :person) @db-con 2))))
+  (is (= {:id 1 :name "Foo"} ((agg/make-read-fn "person" :id) @db-con 1)))
+  (is (= {:id 1 :name "Foo"} ((agg/make-read-fn :person :id) @db-con 1)))
+  (is (= nil ((agg/make-read-fn :person :id) @db-con 2))))
 
 
 (deftest insert-fn-test
   (setup-minimal! @db-con)
-  (let [result ((agg/make-insert-fn "person") @db-con {:name "Bar"})]
+  (let [result ((agg/make-insert-fn "person" :id) @db-con {:name "Bar"})]
     ; :id is part of the record
     (is (= {:id 2 :name "Bar"} result))
     ; a record has actually been added
     (is (= 2 (record-count @db-con "person")))
     ; the new record can be found by its id
-    (is (= {:id 2 :name "Bar"} ((agg/make-read-fn :person) @db-con 2)))))
+    (is (= {:id 2 :name "Bar"} ((agg/make-read-fn :person :id) @db-con 2)))))
 
 
 (deftest update-fn-test
   (setup-minimal! @db-con)
-  (let [result ((agg/make-update-fn :person) @db-con {:id 1 :name "Baz"})]
+  (let [result ((agg/make-update-fn :person :id) @db-con {:id 1 :name "Baz"})]
     ; the set-map is returned
     (is (= {:id 1 :name "Baz"} result))
-    (is (= {:id 1 :name "Baz"} ((agg/make-read-fn :person) @db-con 1)))
+    (is (= {:id 1 :name "Baz"} ((agg/make-read-fn :person :id) @db-con 1)))
     (is (= 1 (record-count @db-con :person)))
-    (is (thrown? AssertionError ((agg/make-update-fn :person) @db-con {:name "Baz"}) ))))
+    (is (thrown? AssertionError ((agg/make-update-fn :person :id) @db-con {:name "Baz"}) ))))
 
 
 (deftest delete-fn-test
   (setup-minimal! @db-con)
   (is (= 1 (record-count @db-con "person")))
-  (is ((agg/make-delete-fn :person) @db-con 1))
+  (is ((agg/make-delete-fn :person :id) @db-con 1))
   (is (= 0 (record-count @db-con "person")))
-  (is (not ((agg/make-delete-fn :person) @db-con 1))))
+  (is (not ((agg/make-delete-fn :person :id) @db-con 1))))
 
 
 (def minimal-er
-  {:entities {:person {:options (agg/make-entity-fns :person)}}})
+  {:options {:persisted-pred-fn agg/persisted?}
+   :entities {:person {:options (agg/make-entity-options :person)}}})
 
 
 (deftest save-load-minimal-test
@@ -152,12 +153,13 @@
             (fk-column :address false)]])
 
 (def one>-er
-  {:entities {:person {:options (agg/make-entity-fns :person)
+  {:options {:persisted-pred-fn agg/persisted?}
+   :entities {:person {:options (agg/make-entity-options :person)
                        :relations {:address {:relation-type :one>
                                              :entity-kw :address
                                              :fk-kw :address_id
                                              :owned? true}}}
-              :address {:options (agg/make-entity-fns :address)}}})
+              :address {:options (agg/make-entity-options :address)}}})
 
 
 (defn setup-one>!
@@ -235,13 +237,14 @@
             (fk-column :project true)]])
 
 (def <many-er
-  {:entities {:project {:options (agg/make-entity-fns :project)
+  {:options {:persisted-pred-fn agg/persisted?}
+   :entities {:project {:options (agg/make-entity-options :project)
                         :relations {:tasks {:relation-type :<many
                                             :entity-kw :task
                                             :fk-kw :project_id
                                             :query-fn (agg/make-query-<many-fn "task" :project_id)
                                             :owned? true}}}
-              :task {:options (agg/make-entity-fns :task)
+              :task {:options (agg/make-entity-options :task)
                      :relations {:project {:relation-type :one>
                                            :entity-kw :project
                                            :fk-kw :project_id
@@ -336,23 +339,26 @@
 
 
 (def <many>-er
-  {:entities {:project {:options (agg/make-entity-fns :project)
+  {:options {:persisted-pred-fn agg/persisted?}
+   :entities {:project {:options (agg/make-entity-options :project)
                         :relations {:members {:relation-type :<many>
                                               :entity-kw :person
                                               :query-fn (agg/make-query-<many>-fn :person
                                                                                   :project_person
                                                                                   :project_id :person_id)
                                               :update-links-fn (agg/make-update-links-fn :project_person
-                                                                                         :project_id :person_id)
+                                                                                         :project_id :person_id
+                                                                                         :id)
                                               :owned? false}}}
-              :person {:options (agg/make-entity-fns :person)
+              :person {:options (agg/make-entity-options :person)
                        :relations {:projects {:relation-type :<many>
                                               :entity-kw :project
                                               :query-fn (agg/make-query-<many>-fn :project
                                                                                   :project_person
                                                                                   :person_id :project_id)
                                               :update-links-fn (agg/make-update-links-fn :project_person
-                                                                                         :person_id :project_id)
+                                                                                         :person_id :project_id
+                                                                                         :id)
                                               :owned? false}}}}})
 
 (defn setup-<many>!
@@ -437,44 +443,5 @@
     (is (-> er-config :entities :project :relations :members :update-links-fn))
     (is (= :manager_id (-> er-config :entities :project :relations :manager :fk-kw)))))
 
-
-
-;; -------------------------------------------------------------------
-;; Tests with a more realistic schema
-
-(def betting-schema
-  [:player [(id-column)
-            [:name "varchar(30)"]]
-   :bet [(id-column)
-         (fk-column :game false)
-         (fk-column :gambler false)
-         [:predicted_result "varchar(10)"]]
-   :gambler [(id-column)
-             [:name "varchar(30)"]]
-   :game [(id-column)
-          (fk-column :player :player_a_id false)
-          (fk-column :player :player_b_id false)]])
-
-(def betting-er
-  {:player {:fns (agg/make-entity-fns :player)
-            :relations {:games {:relation-type :<many>
-                                :entity-kw :game
-                                :query-fn nil
-                                :update-links-fn nil
-                                :owned? false}}}
-   :bet {:fns (agg/make-entity-fns :bet)
-         :relations {:game {:relation-type :<one
-                            :entity-kw :game
-                            :fk-kw :game_id}
-                     :gambler {:relation-type :<one
-                               :entity-kw :gambler
-                               :fk-kw :gambler_id}}}
-   :gambler {:fns (agg/make-entity-fns :gambler)
-             :relations {:games {:relation-type :<many>
-                                 :entity-kw :game
-                                 :query-fn nil
-                                 :update-links-fn nil
-                                 :owned? false}}}
-   :game {:fns (agg/make-entity-fns :game)}})
 
 
