@@ -7,7 +7,7 @@
 ;; - Introduce logging
 ;; - Make detection if insert or update is necessary configurable
 ;; - Make :id keyword configurable on a per entity basis
-;; - Create a load-all function
+;; - Create a find-by function
 
 
 ;; -------------------------------------------------------------------
@@ -36,13 +36,15 @@
 ;;--------------------------------------------------------------------
 ;; Concepts
 ;;
-;; * An er-config is a map of entities.
+;; * An er-config is a map with :entities and :options, :entities is a
+;;   map {entity-kw -> entity-spec}.
 ;;
-;; * An entity is a keyword pointing to a map that contains functions for
-;;   reading, inserting, updating or deleting records, and contains
-;;   relations descriptions to other entities.
+;; * An entity-spec is a map that contains :options and :relations, where
+;;   :relations is a map {relation-kw -> relation-spec}.
+;;   The options map contains functions for reading, inserting, updating or
+;;   deleting records.
 ;;
-;; * A relation is a map with the keys
+;; * A relation-spec is a map with the keys
 ;;   - relation-type    Admissible values are :one>, :<many and :<many>
 ;;   - entity-kw        A keyword denoting an entity
 ;;   - fk-kw            A keyword denoting the foreign-key name
@@ -66,14 +68,18 @@
 ;;--------------------------------------------------------------------
 ;; Factories for default DB access functions based on clojure.java.jdbc
 
-
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn extract-id
   "Extracts id value from results like ({:scope_identity() 2}) or ({:id 2, ...})."
   [insert-result]
   (let [record (first insert-result)]
     (or (:id record) (-> record vals first))))
 
-
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn make-read-fn
   "Returns a read function [db-spec id -> row-map] for a specific table.
   It returns a single record or nil. The tablename may be passed as
@@ -85,6 +91,9 @@
                  [(str "select * from " (name tablename) " where id = ?") id]))))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn make-insert-fn
   "Returns an insert function [db-spec row-map] for a specific table.
   It returns the record, possibly augmented with the generated id in
@@ -98,6 +107,9 @@
       (assoc row-map :id id))))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn make-update-fn
   "Returns an update function [db-spec set-map -> set-map] for a
   specific table, which takes a map of values and updates the record
@@ -113,6 +125,9 @@
     set-map))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn make-delete-fn
   "Returns a delete function [db-spec id -> (Seq id)] for a specific
   table, which deletes the record id points to. It returns the number
@@ -169,10 +184,10 @@
   "Returns a map containing all four default JDBC based implementations
   for read, insert, update and delete."
   [tablename]
-  {:read (make-read-fn tablename)
-   :insert (make-insert-fn tablename)
-   :update (make-update-fn tablename)
-   :delete (make-delete-fn tablename)})
+  {:read-fn (make-read-fn tablename)
+   :insert-fn (make-insert-fn tablename)
+   :update-fn (make-update-fn tablename)
+   :delete-fn (make-delete-fn tablename)})
 
 
 ;;--------------------------------------------------------------------
@@ -196,11 +211,11 @@
   for read, insert, update and delete."
   [{:keys [read-fn-factory insert-fn-factory update-fn-factory delete-fn-factory]}
    tablename
-   {:keys [read insert update delete]}]
-  {:read (or read (read-fn-factory tablename))
-   :insert (or insert (insert-fn-factory tablename))
-   :update (or update (update-fn-factory tablename))
-   :delete (or delete (delete-fn-factory tablename))})
+   {:keys [read-fn insert-fn update-fn delete-fn]}]
+  {:read-fn (or read-fn (read-fn-factory tablename))
+   :insert-fn (or insert-fn (insert-fn-factory tablename))
+   :update-fn (or update-fn (update-fn-factory tablename))
+   :delete-fn (or delete-fn (delete-fn-factory tablename))})
 
 
 (defn- with-default-relation-fns
@@ -235,30 +250,31 @@
 (defn- with-default-fns
   "Returns an er-config with default functions added where missing."
   [er-config]
-  (let [options-map (::options er-config)]
-    (assoc (->> er-config
-                (remove #(= ::options (first %)))
-                (map (fn [[entity-kw {:keys [fns relations] :as entity-spec}]]
-                       (vector entity-kw
-                               {:fns (with-default-entity-fns options-map entity-kw fns)
-                                :relations (->> relations
-                                                (map (partial with-default-relation-fns options-map entity-kw))
-                                                (into {}))})))
-                (into {}))
-      ::options options-map)))
+  (let [er-options (:options er-config)]
+    (update-in er-config
+               [:entities] 
+               (fn [entities]
+                 (->> entities                    
+                      (map (fn [[entity-kw {:keys [options relations]}]]
+                             (vector entity-kw
+                                     {:options (with-default-entity-fns er-options entity-kw options)
+                                      :relations (->> relations
+                                                      (map (partial with-default-relation-fns er-options entity-kw))
+                                                      (into {}))})))
+                      (into {}))))))
 
 
 (defn- with-default-options
   "Returns the default options, replacing defaults by entries in the
   options-map."
-  [options-map]
+  [er-options]
   (merge {:read-fn-factory make-read-fn
           :insert-fn-factory make-insert-fn
           :update-fn-factory make-update-fn
           :delete-fn-factory make-delete-fn
           :query-<many-fn-factory make-query-<many-fn
           :query-<many>-fn-factory make-query-<many>-fn
-          :update-links-fn-factory make-update-links-fn} options-map))
+          :update-links-fn-factory make-update-links-fn} er-options))
 
 
 (defn- entityspec?
@@ -274,13 +290,31 @@
            (p/sequence :options (p/optval map? {})
                        :entity-specs (p/some (p/value entityspec?)))))
 
+
 (defn make-er-config
   "Creates a er-config map from an optional options-map and an
-  arbitrary number of entity-specs."
+  arbitrary number of entity-specs. 
+  Available options:
+  :read-fn-factory          A function (fn [tablename]) returning the 
+                            default read function.
+  :insert-fn-factory        A function (fn [tablename]) returning the
+                            default insert function.
+  :update-fn-factory        A function (fn [tablename]) returning the
+                            default update function.
+  :delete-fn-factory        A function (fn [tablename]) returning the 
+                            default delete function.
+  :query-<many-fn-factory   A function (fn [tablename fk-kw]) returning
+                            the default query-for-many function using
+                            one foreign key.
+  :query-<many>-fn-factory  A function (fn [tablename linktablename fk-a fk-b]) 
+                            returning the default query-for-many function
+                            that uses a linktable.
+  :update-links-fn-factory  A function (fn [linktablename fk-a fk-b]) returning the default
+                            function to update link tables."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
-    (with-default-fns (merge  {::options (with-default-options options)}
-                              (into {} entity-specs)))))
+    (with-default-fns {:options (with-default-options options)
+                       :entities (into {} entity-specs)})))
 
 
 (defn- relationspec?
@@ -300,13 +334,24 @@
 
 (defn entity
   "Returns an entity-spec from an entity keyword, an optional
-  options-map and an arbitrary number of relation-specs. Admissible
-  options are:
-  :fns  A map with functions for :read, :insert, :update and :delete."
+  options-map and an arbitrary number of relation-specs.
+  Available options:
+  :read-fn       A function (fn [db-spec id]) returning the
+                 record with primary key value id as a map.
+  :insert-fn     A function (fn [db-spec row-map]) that inserts 
+                 the row-map as record, and returns the row-map
+                 containing the new primary key value.
+  :update-fn     A function (fn [db-spec set-map]) that updates
+                 the record identified by the primary key value 
+                 within set-map with the values of set-map.
+  :delete-fn     A function (fn [db-spec id]) that deletes the
+                 record identified by the primary key value.
+  :get-id-fn
+  :assoc-id-fn"
   ([& args]
      (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
-       (vector entity-kw (merge {:fns (-> options :fns)}
-                                {:relations (into {} relation-specs)})))))
+       (vector entity-kw {:options options
+                          :relations (into {} relation-specs)}))))
 
 
 (defn ->1
@@ -357,8 +402,8 @@
   [er-config & entities-or-entity-relation-seqs]
   (reduce (fn [er-config k-or-ks]
             (if (coll? k-or-ks)
-              (update-in er-config [(first k-or-ks) :relations] dissoc-ks (rest k-or-ks))
-              (dissoc er-config k-or-ks)))
+              (update-in er-config [:entities (first k-or-ks) :relations] dissoc-ks (rest k-or-ks))
+              (update-in er-config [:entities] dissoc k-or-ks)))
           er-config
           entities-or-entity-relation-seqs))
 
@@ -375,7 +420,7 @@
   relations."
   [er-config & entity-relation-seqs]
   (reduce (fn [er-config ks]
-            (update-in er-config [(first ks) :relations] keep-ks (rest ks)))
+            (update-in er-config [:entities (first ks) :relations] keep-ks (rest ks)))
           er-config
           entity-relation-seqs))
 
@@ -387,6 +432,7 @@
   "Removes all key-value-pairs from m that correspond to relations."
   [er-config entity-kw m]
   (->> er-config
+       :entities
        entity-kw
        :relations
        keys
@@ -404,15 +450,18 @@
   "Is relation relevant? 
   Returns true if the relation points to an existing entity description."
   [er-config [_ {:keys [entity-kw]}]]
-  (contains? er-config entity-kw))
+  (contains? (:entities er-config) entity-kw))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;; Should be made configurable anyway!
+;;;;;;;;;;;;;;;;;;;;
 (defn- persisted?
   "Returns true if the map has already been persisted.
   It is assumed that the existence of an :id key is enough evidence."
   [m]
   (contains? m :id))
-
 
 
 (declare load save! delete!)
@@ -422,6 +471,9 @@
 ;; Load aggregate
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn- load-relation
   "Loads more data according to the specified relation."
   [er-config db-spec m
@@ -435,7 +487,7 @@
         (assoc m relation-kw child)
         (dissoc m relation-kw fk-kw)))
     (:<many :<many>)
-    (if (er-config entity-kw)
+    (if (-> er-config :entities entity-kw)
       (assoc m
         relation-kw
         (->> m :id
@@ -451,16 +503,14 @@
   Returns a map containing the entity-kw in ::entity and all data, or 
   nil if the entity-kw is unknown or the record does not exist."
   ([er-config db-spec entity-kw id]
-     (let [read-fn (-> er-config entity-kw :fns :read)
+     (let [read-fn (-> er-config :entities entity-kw :options :read-fn)
            m (if read-fn (some-> (read-fn db-spec id)
                                  (assoc ::entity entity-kw)))]
        (load er-config db-spec m)))
   ([er-config db-spec m]
      (if-let [entity-kw (::entity m)]
-       (->> er-config
-            entity-kw
-            :relations
-            (reduce (partial load-relation (dissoc er-config entity-kw) db-spec)
+       (->> er-config :entities entity-kw :relations
+            (reduce (partial load-relation (-> er-config (without entity-kw)) db-spec)
                     m)))))
 
 
@@ -469,6 +519,9 @@
 ;; Save aggregate
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn- save-prerequisite!
   "Saves a record that m points to by a foreign-key."
   [er-config
@@ -496,6 +549,9 @@
         m))))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn- save-dependants!
   "Saves records that point via foreign-key to m."
   [er-config
@@ -506,14 +562,14 @@
   (log "save-dependants" relation-kw "->" entity-kw)
   (let [m-id (:id m)
         m-entity-kw (::entity m)
-        dependants (let [update-fn (-> er-config entity-kw :fns :update)
+        dependants (let [update-fn (-> er-config :entities entity-kw :options :update-fn)
                          current-ds (query-fn db-spec m-id)
                          saved-ds (->> (get m relation-kw)
                                        ;; insert foreign key value
                                        (map #(if (= relation-type :<many>)
                                                %
                                                (assoc % fk-kw m-id)))
-                                       (map #(save! (dissoc er-config m-entity-kw)
+                                       (map #(save! (-> er-config (without m-entity-kw))
                                                      db-spec
                                                      entity-kw
                                                      %))
@@ -529,20 +585,22 @@
                        ;; remove all links for m and insert new links
                        (update-links-fn db-spec m-id saved-ds))
                      saved-ds)]
-    (if (er-config entity-kw)
+    (if (-> er-config :entities entity-kw)
       ;; don't add empty collections for already processed entities
       (assoc m relation-kw dependants)
       m)))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn- ins-or-up!
   "Invokes either the :insert or the :update function, depending on whether
   the :id value is nil or non-nil, respectively."
   [er-config db-spec entity-kw m]
-  (let [ins-or-up-fn (-> er-config
-                         entity-kw
-                         :fns
-                         (get (if (persisted? m) :update :insert)))
+  (let [ins-or-up-fn (-> er-config :entities entity-kw :options
+                         (get (if (persisted? m) :update-fn :insert-fn)))
+        #_ (clojure.pprint/pprint er-config)
         saved-m (->> m
                      (without-relations-and-entity er-config entity-kw)
                      (ins-or-up-fn db-spec))]
@@ -562,12 +620,12 @@
      (when m
        ;; first process all records linked with a :one> relation-type
        ;; because we need their ids as foreign keys in m
-       (let [relations (-> er-config entity-kw :relations)
-             update-fn (-> er-config entity-kw :fns :update)
+       (let [relations (-> er-config :entities entity-kw :relations)
+             update-fn (-> er-config :entities entity-kw :options :update-fn)
              m (->> relations
                     (filter (partial rt? :one>))
                     (filter (partial rr? er-config))
-                    (reduce (partial save-prerequisite! (dissoc er-config entity-kw) db-spec update-fn) m)
+                    (reduce (partial save-prerequisite! (-> er-config (without entity-kw)) db-spec update-fn) m)
                     ;; this will persist m itself (containing all foreign keys)
                     (ins-or-up! er-config db-spec entity-kw))]
          ;; process all other types of relations
@@ -575,13 +633,16 @@
          (->> relations
               (remove (partial rt? :one>))
               (filter (partial rr? er-config))
-              (reduce (partial save-dependants! (dissoc er-config entity-kw) db-spec) m))))))
+              (reduce (partial save-dependants! (-> er-config (without entity-kw)) db-spec) m))))))
                                        
 
 ;;--------------------------------------------------------------------
 ;; Delete aggregate
 
-(defn- nil->0 [n] (if (number? n) n 0))
+(defn- nil->0
+  [n]
+  (if (number? n) n 0))
+
 
 (defn- delete-prerequisite!
   "Deletes a record that m points to by a foreign key.
@@ -598,6 +659,9 @@
        :else 0))))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn- delete-dependants!
   "Deletes all records that m contains, and that point by foreign key to m.
   Returns the number of deleted records."
@@ -610,7 +674,7 @@
                        (map nil->0)
                        (apply +))
                   (if (= relation-type :<many)
-                    (let [update-fn (-> er-config entity-kw :fns :update)]
+                    (let [update-fn (-> er-config :entities entity-kw :options :update-fn)]
                       (->> (get m relation-kw)
                            (map #(update-fn db-spec {:id (:id %) fk-kw nil}))
                            doall)
@@ -621,6 +685,9 @@
     deleted))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;;ID
+;;;;;;;;;;;;;;;;;;;;
 (defn delete!
   "Removes an aggregate datastructure from the database.
   Returns the number of deleted records."
@@ -630,10 +697,10 @@
   ([er-config db-spec entity-kw m-or-id]
      (log "delete" entity-kw)
      (if m-or-id
-       (let [delete-fn (-> er-config entity-kw :fns :delete)]
+       (let [delete-fn (-> er-config :entities entity-kw :options :delete-fn)]
          (if (map? m-or-id)
            (let [;; delete all records that might point to m
-                 deleted-dependants (->> er-config entity-kw :relations
+                 deleted-dependants (->> er-config :entities entity-kw :relations
                                          (remove (partial rt? :one>))
                                          (map (partial delete-dependants! er-config db-spec m-or-id))
                                          (map nil->0)
@@ -641,7 +708,7 @@
                  ;; delete the record
                  deleted-m (nil->0 (delete-fn db-spec (:id m-or-id)))
                  ;; delete all owned records that m points to via foreign key
-                 deleted-prerequisites (->> er-config entity-kw :relations
+                 deleted-prerequisites (->> er-config :entities entity-kw :relations
                                             (filter (partial rt? :one>))
                                             (map (partial delete-prerequisite! er-config db-spec m-or-id))
                                             (map nil->0)

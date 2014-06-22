@@ -12,27 +12,27 @@
 
 
 (deftest without-test
-  (let [er {:project {:relations {:tasks {}
-                                  :members {}
-                                  :customer {}}}
-            :task {:relations {:project {}}}}]
-    (is (= {:task {:relations {:project {}}}}
+  (let [er {:entities {:project {:relations {:tasks {}
+                                             :members {}
+                                             :customer {}}}
+                       :task {:relations {:project {}}}}}]
+    (is (= {:entities {:task {:relations {:project {}}}}}
            (-> er (agg/without :project))))
-    (is (= {:project {:relations {:tasks {}}}}
+    (is (= {:entities {:project {:relations {:tasks {}}}}}
            (-> er (agg/without [:project :members :customer] :task))))))
 
 
 (deftest only-test
-  (let [er {:project {:relations {:tasks {}
-                                  :members {}
-                                  :customer {}}}
-            :task {:relations {:project {}}}}]
-    (is (= {:project {:relations {}}
-            :task {:relations {:project {}}}}
+  (let [er {:entities {:project {:relations {:tasks {}
+                                             :members {}
+                                             :customer {}}}
+                       :task {:relations {:project {}}}}}]
+    (is (= {:entities {:project {:relations {}}
+                       :task {:relations {:project {}}}}}
            (-> er (agg/only [:project]))))
-    (is (= {:project {:relations {:members {}
-                                  :customer {}}}
-            :task {:relations {}}}
+    (is (= {:entities {:project {:relations {:members {}
+                                             :customer {}}}
+                       :task {:relations {}}}}
            (-> er (agg/only [:project :members :customer]
                             [:task]))))))
 
@@ -42,12 +42,12 @@
                                 :query-<many-fn-factory (constantly "foo")}
                                (agg/entity :a
                                            (agg/->n :bs :b))
-                               (agg/entity :b {:fns {:read "bum"}}
+                               (agg/entity :b {:read-fn "bum"}
                                            (agg/->n :as :a {:query-fn "baz"})))]
-    (is (= "bar" (-> er :a :fns :read)))
-    (is (= "foo" (-> er :a :relations :bs :query-fn)))
-    (is (= "bum" (-> er :b :fns :read)))
-    (is (= "baz" (-> er :b :relations :as :query-fn)))))
+    (is (= "bar" (-> er :entities :a :options :read-fn)))
+    (is (= "foo" (-> er :entities :a :relations :bs :query-fn)))
+    (is (= "bum" (-> er :entities :b :options :read-fn)))
+    (is (= "baz" (-> er :entities :b :relations :as :query-fn)))))
 
 
 ;; -------------------------------------------------------------------
@@ -101,7 +101,7 @@
 
 
 (def minimal-er
-  {:person {:fns (agg/make-entity-fns :person)}})
+  {:entities {:person {:options (agg/make-entity-fns :person)}}})
 
 
 (deftest save-load-minimal-test
@@ -152,12 +152,12 @@
             (fk-column :address false)]])
 
 (def one>-er
-  {:person {:fns (agg/make-entity-fns :person)
-            :relations {:address {:relation-type :one>
-                                  :entity-kw :address
-                                  :fk-kw :address_id
-                                  :owned? true}}}
-   :address {:fns (agg/make-entity-fns :address)}})
+  {:entities {:person {:options (agg/make-entity-fns :person)
+                       :relations {:address {:relation-type :one>
+                                             :entity-kw :address
+                                             :fk-kw :address_id
+                                             :owned? true}}}
+              :address {:options (agg/make-entity-fns :address)}}})
 
 
 (defn setup-one>!
@@ -235,17 +235,17 @@
             (fk-column :project true)]])
 
 (def <many-er
-  {:project {:fns (agg/make-entity-fns :project)
-             :relations {:tasks {:relation-type :<many
-                                 :entity-kw :task
-                                 :fk-kw :project_id
-                                 :query-fn (agg/make-query-<many-fn "task" :project_id)
-                                 :owned? true}}}
-   :task {:fns (agg/make-entity-fns :task)
-          :relations {:project {:relation-type :one>
-                                :entity-kw :project
-                                :fk-kw :project_id
-                                :owned? false}}}})
+  {:entities {:project {:options (agg/make-entity-fns :project)
+                        :relations {:tasks {:relation-type :<many
+                                            :entity-kw :task
+                                            :fk-kw :project_id
+                                            :query-fn (agg/make-query-<many-fn "task" :project_id)
+                                            :owned? true}}}
+              :task {:options (agg/make-entity-fns :task)
+                     :relations {:project {:relation-type :one>
+                                           :entity-kw :project
+                                           :fk-kw :project_id
+                                           :owned? false}}}}})
 
 (defn setup-<many!
   [con]
@@ -336,24 +336,24 @@
 
 
 (def <many>-er
-  {:project {:fns (agg/make-entity-fns :project)
-             :relations {:members {:relation-type :<many>
-                                   :entity-kw :person
-                                   :query-fn (agg/make-query-<many>-fn :person
-                                                                       :project_person
-                                                                       :project_id :person_id)
-                                   :update-links-fn (agg/make-update-links-fn :project_person
-                                                                              :project_id :person_id)
-                                   :owned? false}}}
-   :person {:fns (agg/make-entity-fns :person)
-            :relations {:projects {:relation-type :<many>
-                                   :entity-kw :project
-                                   :query-fn (agg/make-query-<many>-fn :project
-                                                                       :project_person
-                                                                       :person_id :project_id)
-                                   :update-links-fn (agg/make-update-links-fn :project_person
-                                                                              :person_id :project_id)
-                                   :owned? false}}}})
+  {:entities {:project {:options (agg/make-entity-fns :project)
+                        :relations {:members {:relation-type :<many>
+                                              :entity-kw :person
+                                              :query-fn (agg/make-query-<many>-fn :person
+                                                                                  :project_person
+                                                                                  :project_id :person_id)
+                                              :update-links-fn (agg/make-update-links-fn :project_person
+                                                                                         :project_id :person_id)
+                                              :owned? false}}}
+              :person {:options (agg/make-entity-fns :person)
+                       :relations {:projects {:relation-type :<many>
+                                              :entity-kw :project
+                                              :query-fn (agg/make-query-<many>-fn :project
+                                                                                  :project_person
+                                                                                  :person_id :project_id)
+                                              :update-links-fn (agg/make-update-links-fn :project_person
+                                                                                         :person_id :project_id)
+                                              :owned? false}}}}})
 
 (defn setup-<many>!
   [con]
@@ -431,11 +431,11 @@
                                (agg/->n :tasks :task)
                                (agg/->1 :manager :person))
                    (agg/entity :person))]
-    (is (-> er-config :project :fns :read))
-    (is (-> er-config :person :fns :delete))
-    (is (-> er-config :project :relations :tasks :query-fn))
-    (is (-> er-config :project :relations :members :update-links-fn))
-    (is (= :manager_id (-> er-config :project :relations :manager :fk-kw)))))
+    (is (-> er-config :entities :project :options :read-fn))
+    (is (-> er-config :entities :person :options :delete-fn))
+    (is (-> er-config :entities :project :relations :tasks :query-fn))
+    (is (-> er-config :entities :project :relations :members :update-links-fn))
+    (is (= :manager_id (-> er-config :entities :project :relations :manager :fk-kw)))))
 
 
 
