@@ -58,9 +58,9 @@ Or for testing in the REPL execute
 
 The library mainly provides three functions
 
-* `(agg/load er-config db-spec entity-keyword id)` or `(agg/load er-config db-spec data)`
-* `(agg/save! er-config db-spec entity-keyword data)` or `(agg/save! er-config db-spec data)`
-* `(agg/delete! er-config db-spec entity-keyword data)` or `(agg/delete! er-config db-spec data)`
+* `(agg/load er-config db-spec entity-keyword id)`
+* `(agg/save! er-config db-spec data)`
+* `(agg/delete! er-config db-spec data)`
 
 
 The `er-config` describes *relations* between *entities*, and contains
@@ -242,15 +242,15 @@ And we can delete the project, and with it all it's owned entities and links to 
 The er-config is only a map of the form
 
 ```
-{::agg/options {}
- <entity-kw> {:fns {}
-              :relations {<relation-kw> {}}}}
+{:options {}
+ :entities {<entity-kw> {:options {}
+                         :relations {<relation-kw> {}}}}
 ```
 
 Each entity is represented by it's entity-kw and a corresponding
-map. Each of these entity maps contains general options, for example
-the functions in `:fns` to be used for read, insert, update and delete,
-and a map of relations.
+map. Each of these entity maps contains general options in an
+`:options` map, for example the functions to be used for read, insert,
+update and delete, and a map of relations.
 
 Each relation consists of it's relation-kw, as it is used in
 concrete data, and options. The options depend on the type of the
@@ -426,10 +426,10 @@ These functions are provided in the entity options map. Example:
 
 ```clojure
 (agg/entity :person
-            {:fns {:read my-read-person
-                   :insert my-insert-person
-                   :update my-update-person
-				   :delete my-delete-person}}
+            {:read-fn my-read-person
+             :insert-fn my-insert-person
+             :update-fn my-update-person
+			 :delete-fn my-delete-person}
 	        (agg/-> ...)
 			...)
 ```
