@@ -278,7 +278,8 @@
 
 
 (defn- entityspec?
-  "Returns true if x is a vector containing a keyword as first and a map as second item"
+  "Returns true if x is a vector containing a keyword as first and a
+  map as second item"
   [x]
   (and (vector? x)
        (keyword? (first x))
@@ -309,8 +310,9 @@
   :query-<many>-fn-factory  A function (fn [tablename linktablename fk-a fk-b]) 
                             returning the default query-for-many function
                             that uses a linktable.
-  :update-links-fn-factory  A function (fn [linktablename fk-a fk-b]) returning the default
-                            function to update link tables."
+  :update-links-fn-factory  A function (fn [linktablename fk-a fk-b]) 
+                            returning the default function to update 
+                            link tables."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
     (with-default-fns {:options (with-default-options options)
@@ -346,8 +348,10 @@
                  within set-map with the values of set-map.
   :delete-fn     A function (fn [db-spec id]) that deletes the
                  record identified by the primary key value.
-  :get-id-fn
-  :assoc-id-fn"
+  NOT YET SUPPORTED
+  :id-kw         The keyword to be used to get/assoc the primary key
+                 value, and what is used as column name in
+                 default queries."
   ([& args]
      (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
        (vector entity-kw {:options options
@@ -355,7 +359,12 @@
 
 
 (defn ->1
-  "Returns a relation-spec for a :one> relationship."
+  "Returns a relation-spec for a :one> relationship.
+  Available options:
+  fk-kw             A keyword denoting the foreign-key name.
+  :owned?           A boolean telling if the related entity is owned,
+                    i.e. will be deleted when the owner or the link is
+                    deleted. Default true."
   ([relation-kw entity-kw]
      (->1 relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
@@ -367,7 +376,13 @@
 
 
 (defn ->n
-  "Returns a relation-spec for a :<many relationship."
+  "Returns a relation-spec for a :<many relationship.
+  Available options:
+  fk-kw             A keyword denoting the foreign-key name.
+  :query-fn         A function returning records by a foreign key.
+  :owned?           A boolean telling if the related entity is owned,
+                    i.e. will be deleted when the owner or the link is
+                    deleted. Default true."
   ([relation-kw entity-kw]
      (->n relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
@@ -380,7 +395,13 @@
 
 
 (defn ->mn
-  "Returns a relation-spec for a :<many> relationship."
+  "Returns a relation-spec for a :<many> relationship.
+  Available options:
+  :query-fn         A function returning records by a foreign key.
+  :update-links-fn  A function for updating link table records.
+  :owned?           A boolean telling if the related entity is owned,
+                    i.e. will be deleted when the owner or the link is
+                    deleted. Default false."
   ([relation-kw entity-kw]
      (->mn relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
