@@ -154,15 +154,17 @@
   specific table whose records are in a m to n relationship
   realized by a link table containing two foreign keys. The
   function returns a sequence of maps."
-  [tablename linktablename fk-a fk-b]
-  {:pre [fk-a fk-b]}
-  (let [sql (str "select * from " (name tablename)
-                 " A join " (name linktablename) " AB"
-                 " on A.id = AB." (name fk-b)
-                 " where AB." (name fk-a) " = ?")]
-    (fn [db-spec id-b]
-      (->> (jdbc/query db-spec [sql id-b])
-           (map #(dissoc % (keyword fk-a) (keyword fk-b)))))))
+  ([tablename linktablename fk-a fk-b]
+     (make-query-<many>-fn tablename linktablename fk-a fk-b :id))
+  ([tablename linktablename fk-a fk-b b-id-kw]
+     {:pre [fk-a fk-b]}
+     (let [sql (str "select * from " (name tablename)
+                    " A join " (name linktablename) " AB"
+                    " on A." (name b-id-kw) " = AB." (name fk-b)
+                    " where AB." (name fk-a) " = ?")]
+       (fn [db-spec id-b]
+         (->> (jdbc/query db-spec [sql id-b])
+              (map #(dissoc % (keyword fk-a) (keyword fk-b))))))))
 
 
 (defn make-update-links-fn
@@ -212,7 +214,7 @@
   (keyword (str (name a-entity-kw) "_" (name b-entity-kw))))
 
 
-(defn with-default-entity-options
+(defn- with-default-entity-options
   "Returns a map containing all four default JDBC based implementations
   for read, insert, update and delete."
   [er-config
@@ -225,10 +227,10 @@
                 delete-fn-factory]} (-> er-config :options)
                 e-id-kw (or (-> er-config :entities entity-kw :options :id-kw) id-kw :id)]
     {:id-kw e-id-kw
-     :read-fn (or read-fn (read-fn-factory entity-kw id-kw))
-     :insert-fn (or insert-fn (insert-fn-factory entity-kw id-kw))
-     :update-fn (or update-fn (update-fn-factory entity-kw id-kw))
-     :delete-fn (or delete-fn (delete-fn-factory entity-kw id-kw))}))
+     :read-fn (or read-fn (read-fn-factory entity-kw e-id-kw))
+     :insert-fn (or insert-fn (insert-fn-factory entity-kw e-id-kw))
+     :update-fn (or update-fn (update-fn-factory entity-kw e-id-kw))
+     :delete-fn (or delete-fn (delete-fn-factory entity-kw e-id-kw))}))
 
 
 (defn- with-default-relation-fns
@@ -255,7 +257,7 @@
                           (or query-fn
                               (query-<many>-fn-factory
                                entity-kw
-                               (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b))
+                               (default-link-tablename parent-entity-kw entity-kw) fk-a fk-b b-id-kw))
                           :update-links-fn
                           (or update-links-fn
                               (update-links-fn-factory
@@ -318,12 +320,9 @@
 
 (defn make-er-config
   "Creates a er-config map from an optional options-map and an
-  arbitrary number of entity-specs. 
+  arbitrary number of entity-specs, i.e. 
+      (agg/make-er-config options-map? entities)
   Available options:
-  :id-kw                    A keyword that is taken as default primary 
-                            key column.
-  :persisted-pred-fn        A predicate that returns true if the given
-                            row-map is already present in DB.
   :read-fn-factory          A function (fn [tablename]) returning the 
                             default read function.
   :insert-fn-factory        A function (fn [tablename]) returning the
@@ -340,7 +339,11 @@
                             that uses a linktable.
   :update-links-fn-factory  A function (fn [linktablename fk-a fk-b]) 
                             returning the default function to update 
-                            link tables."
+                            link tables.
+  :id-kw                    A keyword that is taken as default primary 
+                            key column name.
+  :persisted-pred-fn        A predicate that returns true if the given
+                            row-map is already present in DB."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
     (with-defaults {:options (with-default-options options)
@@ -364,7 +367,8 @@
 
 (defn entity
   "Returns an entity-spec from an entity keyword, an optional
-  options-map and an arbitrary number of relation-specs.
+  options-map and an arbitrary number of relation-specs, i.e.
+      (agg/entity entity-kw options-map? relations)
   Available options:
   :read-fn       A function (fn [db-spec id]) returning the
                  record with primary key value id as a map.
@@ -376,9 +380,9 @@
                  within set-map with the values of set-map.
   :delete-fn     A function (fn [db-spec id]) that deletes the
                  record identified by the primary key value.
-  :id-kw         The keyword to be used to get/assoc the primary key
-                 value, and what is used as column name in
-                 default queries."
+  :id-kw         The keyword to be used to get/assoc the primary 
+                 key value. It is also used as primary key 
+                 column name in default DB access functions."
   ([& args]
      (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
        (vector entity-kw {:options options
@@ -391,7 +395,7 @@
   fk-kw             A keyword denoting the foreign-key name.
   :owned?           A boolean telling if the related entity is owned,
                     i.e. will be deleted when the owner or the link is
-                    deleted. Default true."
+                    deleted. Defaults to true."
   ([relation-kw entity-kw]
      (->1 relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
@@ -409,7 +413,7 @@
   :query-fn         A function returning records by a foreign key.
   :owned?           A boolean telling if the related entity is owned,
                     i.e. will be deleted when the owner or the link is
-                    deleted. Default true."
+                    deleted. Defaults to true."
   ([relation-kw entity-kw]
      (->n relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
@@ -428,7 +432,7 @@
   :update-links-fn  A function for updating link table records.
   :owned?           A boolean telling if the related entity is owned,
                     i.e. will be deleted when the owner or the link is
-                    deleted. Default false."
+                    deleted. Defaults to false."
   ([relation-kw entity-kw]
      (->mn relation-kw entity-kw {}))
   ([relation-kw entity-kw options]
@@ -473,7 +477,7 @@
           entity-relation-seqs))
 
 ;;--------------------------------------------------------------------
-;; Common utility functions for the big three load, save! and delete!
+;; Common utility functions for the big three: load, save! and delete!
 
 
 (defn- without-relations-and-entity
@@ -626,13 +630,12 @@
 
 
 (defn- ins-or-up!
-  "Invokes either the :insert or the :update function, depending on whether
-  the :id value is nil or non-nil, respectively."
+  "Invokes either the :update or the :insert function, depending on whether
+  m is persisted or not."
   [er-config db-spec entity-kw id-kw m]
   (let [persisted? (-> er-config :options :persisted-pred-fn)
         ins-or-up-fn (-> er-config :entities entity-kw :options
                          (get (if (persisted? id-kw m) :update-fn :insert-fn)))
-        #_ (clojure.pprint/pprint er-config)
         saved-m (->> m
                      (without-relations-and-entity er-config entity-kw)
                      (ins-or-up-fn db-spec))]

@@ -171,20 +171,22 @@
 
 
 (def schema3
-  [:a [(id-column)
+  [:a [(id-column :ad)
        [:name "varchar(30)"]]
-   :b [(id-column)
+   :b [(id-column :bd)
        [:name "varchar(30)"]]
-   :a_b [(fk-column :a false)
-         (fk-column :b false)]])
+   :a_b [[:a_id "integer references a(ad)"]
+         [:b_id "integer references b(bd)"]]])
 
 (def er3
   (agg/make-er-config
    (agg/entity :a
+               {:id-kw :ad}
                (agg/->mn :bs :b {:owned? true}))
    (agg/entity :b
-               (agg/->mn :as :a {:query-fn (agg/make-query-<many>-fn :a :a_b :b_id :a_id)
-                                 :update-links-fn (agg/make-update-links-fn :a_b :b_id :a_id)
+               {:id-kw :bd}
+               (agg/->mn :as :a {:query-fn (agg/make-query-<many>-fn :a :a_b :b_id :a_id :ad)
+                                 :update-links-fn (agg/make-update-links-fn :a_b :b_id :a_id :ad)
                                  :owned? true}))))
 
 (deftest scenario3-test
