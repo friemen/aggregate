@@ -5,7 +5,6 @@
 
 ;; TODO
 ;; - Introduce better logging
-;; - Create a find-by function
 
 
 ;; -------------------------------------------------------------------
