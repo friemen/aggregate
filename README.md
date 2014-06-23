@@ -9,7 +9,7 @@ Martin Fowler briefly explains
 
 [![Build Status](https://travis-ci.org/friemen/aggregate.png?branch=master)](https://travis-ci.org/friemen/aggregate)
 
-The library is currently work in progress and not yet released!
+[![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](http://clojars.org/aggregate)
 
 ## Motivation
 
