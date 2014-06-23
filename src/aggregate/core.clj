@@ -342,8 +342,9 @@
                             link tables.
   :id-kw                    A keyword that is taken as default primary 
                             key column name.
-  :persisted-pred-fn        A predicate that returns true if the given
-                            row-map is already present in DB."
+  :persisted-pred-fn        A predicate (fn [id-kw row-map]) that returns 
+                            true if the given row-map is already present 
+                            in DB."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
     (with-defaults {:options (with-default-options options)

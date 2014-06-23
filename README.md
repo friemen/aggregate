@@ -265,7 +265,7 @@ You can concisely create an er-config map using `(agg/make-er-config
 one of three functions `->1`, `->n` and `->mn`, whose names denote the
 type of the relation.
 
-The following sections show type-wise how to specify relations.
+The following sections show how to specify relations.
 
 ### Relation type :one>
 
@@ -517,6 +517,34 @@ The valid keys and their defaults are
 ```
 
 Please see the default make-* implementations for their signatures.
+
+
+### Use a different primary key column name
+
+By default, aggregate assumes that there is one surrogate primary key
+column identified by `:id`. You can override this either globally in
+the er-config options or on a per-entity basis in the corresponding
+entity options by setting the value of `:id-kw` to another keyword.
+
+
+### Customize persistence status detection
+
+By default, aggregate looks in a row-map for existence of a primary
+key value by getting the value of `:id` (or whatever was specified as
+`:id-kw`, see above). If such a value exists in the row-map, it
+assumes that there exists a corresponding database record.
+Subsequently, to save a row-map the update-fn will be used instead of
+insert-fn. This mechanism is fine for auto-generated keys, but becomes
+an obstacle if you want to handle in the id value by yourself.
+
+Therefore the er-config options may contain a key `:persisted-pred-fn`
+that points to a function `(fn [id-kw row-map])` that returns true,
+if the row-map has a corresponding record in the database. The default
+value is `agg/persisted?`.
+
+Alternative implementations for `:persisted-pred-fn` might use an
+additional DB lookup or use a special key to mark a row-map as
+"not yet persisted".
 
 
 ## License
