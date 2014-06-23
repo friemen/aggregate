@@ -102,7 +102,7 @@ What follows is a global er-config that enables `load`, `save!` and
 ```clojure
 (def er
   "The complete entity-relationship model.
-  Be careful, using this directly may take the complete database into account."
+  Be careful, using this directly may affect many records."
   (agg/make-er-config
    (agg/entity :customer
                (agg/->n :projects :project {:fk-kw :customer_id}))
@@ -122,8 +122,7 @@ What follows is a global er-config that enables `load`, `save!` and
                                            :update-links-fn (agg/make-update-links-fn
                                                              :person_project
                                                              :project_id
-                                                             :person_id
-															 :id)})
+                                                             :person_id)})
                (agg/->1 :manager :person {:owned? false})
                (agg/->n :tasks :task {:fk-kw :project_id}))
    (agg/entity :task
@@ -347,6 +346,21 @@ It iterates all relations that can be found in the er-config relations
 map for the entity and recursively loads the data of connected
 rows. Loaded maps are augmented with a corresponding entity keyword in
 the `::agg/entity` slot.
+
+Most programs initially access a DB with queries, not with exact
+primary keys and `load`. Although aggregate itself doesn't offer any
+find-by-criteria API you can combine `load` with the result of any
+query like so:
+
+```clojure
+(->> (my-query-products db-spec)
+     (map #(assoc % ::agg/entity :product))
+	 (map (partial agg/load er-config db-spec))
+	 doall)
+```
+
+`load` will then follow the relations specified for the `:product`
+entity in order to query additional data.
 
 
 ### save!
