@@ -9,21 +9,21 @@
 
 ;; -------------------------------------------------------------------
 ;; Scenario 1
-;; A ->n B ->1 C, all owned
+;; A ->n B ->1 C, all owned, non-:id pk
 
 (def schema1
-  [:a [(id-column)
+  [:a [(id-column "pk")
        [:name "varchar(30)"]]
-   :c [(id-column)
+   :c [(id-column "pk")
        [:name "varchar(30)"]]
-   :b [(id-column)
+   :b [(id-column "pk")
        [:name "varchar(30)"]
-       (fk-column :a false)
-       (fk-column :c false)]])
+       [:a_id "integer references a(pk)"]
+       [:c_id "integer references c(pk)"]]])
 
 
 (def er1
-  (agg/make-er-config
+  (agg/make-er-config {:id-kw :pk}
    (agg/entity :a
                (agg/->n :bs :b))
    (agg/entity :b
@@ -46,21 +46,21 @@
     (let [a (agg/load er1 @db-con :a 1)
           b1 (-> a :bs (get 0))]
       (is (= {:bs
-              [{:c {:aggregate.core/entity :c, :name "C1", :id 1},
+              [{:c {:aggregate.core/entity :c, :name "C1", :pk 1},
                 :aggregate.core/entity :b,
                 :c_id 1,
                 :a_id 1,
                 :name "B1",
-                :id 1}
-               {:c {:aggregate.core/entity :c, :name "C2", :id 2},
+                :pk 1}
+               {:c {:aggregate.core/entity :c, :name "C2", :pk 2},
                 :aggregate.core/entity :b,
                 :c_id 2,
                 :a_id 1,
                 :name "B2",
-                :id 2}],
+                :pk 2}],
               :aggregate.core/entity :a,
               :name "A",
-              :id 1}
+              :pk 1}
              a))
       (is (= 2 (agg/delete! er1 @db-con b1)))))
   (testing "Remove a B from A then save"
@@ -70,7 +70,7 @@
       (is (= {:bs [],
               :aggregate.core/entity :a,
               :name "A",
-              :id 1}
+              :pk 1}
              (agg/load er1 @db-con :a 1)))
       (is (= 0 (record-count @db-con :b)))
       (is (= 0 (record-count @db-con :c)))
@@ -167,7 +167,7 @@
 
 ;; -------------------------------------------------------------------
 ;; Scenario 3
-;; A ->mn B, owned
+;; A ->mn B, B owns A, non-:id keys
 
 
 (def schema3
@@ -182,12 +182,14 @@
   (agg/make-er-config
    (agg/entity :a
                {:id-kw :ad}
-               (agg/->mn :bs :b {:owned? true}))
+               (agg/->mn :bs :b {:owned? true
+                                 :query-fn (agg/make-query-<many>-fn :b :a_b :a_id :b_id :bd)}))
    (agg/entity :b
                {:id-kw :bd}
                (agg/->mn :as :a {:query-fn (agg/make-query-<many>-fn :a :a_b :b_id :a_id :ad)
                                  :update-links-fn (agg/make-update-links-fn :a_b :b_id :a_id :ad)
                                  :owned? true}))))
+
 
 (deftest scenario3-test
   (create-schema! @db-con schema3)
@@ -204,13 +206,16 @@
     (is (= 0 (record-count @db-con :a_b)))
     (testing "Link first A with first 5 Bs"
       (let [a1 (assoc (first saved-as) :bs (take 5 saved-bs))]
+        (is (= 0 (->> a1 :ad (agg/load er3 @db-con :a) :bs count)))
         (agg/save! er3 @db-con a1)
         (is (= 10 (record-count @db-con :a)))
         (is (= 10 (record-count @db-con :b)))
-        (is (= 5 (record-count @db-con :a_b)))))
+        (is (= 5 (record-count @db-con :a_b)))
+        (is (= 5 (->> a1 :ad (agg/load er3 @db-con :a) :bs count)))))
     (testing "Load first 5 Bs, assert all point to A1"
       (doseq  [b (->> [1 2 3 4 5] (map (partial agg/load er3 @db-con :b)))]
-        (is (= "A1" (-> b :as first :name)))))
+        (is (= "A1" (-> b :as first :name)))
+        (is (= 1 (-> b :as count)))))
     (testing "Delete all Bs pointing to A1, assert that 9 As remain"
       (->> [1 2 3 4 5]
            (map (partial agg/load er3 @db-con :b))
