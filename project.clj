@@ -1,4 +1,4 @@
-(defproject aggregate "1.0.0"
+(defproject aggregate "1.0.1-SNAPSHOT"
   :description "Persisting complex datastructures in SQL tables"
   :url "https://github.com/friemen/aggregate"
   :license {:name "Eclipse Public License"

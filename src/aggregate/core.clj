@@ -53,6 +53,7 @@
 ;;   - update-links-fn  A function for updating link table records.
 ;;                      (only relevant for :<many>)
 
+
 ;;--------------------------------------------------------------------
 ;; Common utilities
 
@@ -61,6 +62,7 @@
   [& xs]
   #_ (apply println xs)
   xs)
+
 
 ;;--------------------------------------------------------------------
 ;; Factories for default DB access functions based on clojure.java.jdbc
@@ -92,7 +94,7 @@
 
 
 (defn make-insert-fn
-  "Returns an insert function [db-spec row-map] for a specific table.
+  "Returns an insert function [db-spec row-map -> row-map] for a specific table.
   It returns the record, possibly augmented with the generated id in
   an :id slot. The tablename may be passed as string or keyword."
   [tablename id-kw]
@@ -392,7 +394,7 @@
 (defn ->1
   "Returns a relation-spec for a :one> relationship.
   Available options:
-  fk-kw             A keyword denoting the foreign-key name.
+  :fk-kw            A keyword denoting the foreign-key name.
   :owned?           A boolean telling if the related entity is owned,
                     i.e. will be deleted when the owner or the link is
                     deleted. Defaults to true."
@@ -409,7 +411,7 @@
 (defn ->n
   "Returns a relation-spec for a :<many relationship.
   Available options:
-  fk-kw             A keyword denoting the foreign-key name.
+  :fk-kw            A keyword denoting the foreign-key name.
   :query-fn         A function returning records by a foreign key.
   :owned?           A boolean telling if the related entity is owned,
                     i.e. will be deleted when the owner or the link is
@@ -444,6 +446,7 @@
                                 options))))
 
 (defn- dissoc-ks
+  "Remove keys in ks from m."
   [m ks]
   (apply (partial dissoc m) ks))
 
@@ -461,6 +464,7 @@
 
 
 (defn- keep-ks
+  "Removes all but ks keys from map m."
   [m ks]
   (let [ks-set (set ks)]
     (into {} (filter (comp ks-set first) m))))
@@ -676,6 +680,7 @@
 ;; Delete aggregate
 
 (defn- nil->0
+  "Returns 0 for a non-number value of n, else n."
   [n]
   (if (number? n) n 0))
 
