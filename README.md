@@ -11,6 +11,8 @@ Martin Fowler briefly explains
 
 [![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](http://clojars.org/aggregate)
 
+[API docs](https://friemen.github.com/aggregate) 
+
 ## Motivation
 
 Have you ever tried to persist a data graph like this
@@ -42,18 +44,16 @@ default DB access functions that aggregate provides with your own
 implementations based on other libraries.
 
 
-## A first impression
-
 Include this in your namespace declaration:
 ```clojure
 [aggregate.core :as agg]
 ```
 
-Or for testing in the REPL execute
-```clojure
-(do (require '[aggregate.core :as agg])
-    (require '[aggregate.testsupport :refer :all]))
-```
+## A first impression
+
+For quickly testing it in the REPL, clone the
+[sample project](https://github.com/friemen/aggregate-sample)
+and open it's core namespace. Start the REPL and load the namespace.
 
 
 The library mainly provides three functions
@@ -153,11 +153,10 @@ account we can narrow the er-config down to support certain use cases.
 
 
 This is all we need as preparation. Let's test it.
-As a test scoped dependency H2 is available:
+In the sample project H2 is available:
 
 ```clojure
-(do (require '[aggregate.h2 :as h2])
-    (h2/start-db))
+(h2/start-db)
 ; "Starting DB, web console is available on localhost:8082"
 ;= nil
 ```
