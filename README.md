@@ -13,6 +13,11 @@ Martin Fowler briefly explains
 
 [API docs](https://friemen.github.com/aggregate) 
 
+Include this in your namespace declaration:
+```clojure
+[aggregate.core :as agg]
+```
+
 ## Motivation
 
 Have you ever tried to persist a data graph like this
@@ -43,11 +48,6 @@ other libraries for unnested data. Second, you can exchange the
 default DB access functions that aggregate provides with your own
 implementations based on other libraries.
 
-
-Include this in your namespace declaration:
-```clojure
-[aggregate.core :as agg]
-```
 
 ## A first impression
 
