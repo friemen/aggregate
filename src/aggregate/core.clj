@@ -3,9 +3,6 @@
   (:require [clojure.java.jdbc :as jdbc]
             [parsargs.core :as p]))
 
-;; TODO
-;; - Introduce better logging
-
 
 ;; -------------------------------------------------------------------
 ;; For testing in the REPL
@@ -137,11 +134,10 @@
       (if (> n 0) n nil))))
 
 
-
 (defn make-query-<many-fn
   "Returns a finder function [db-spec id -> (Seq Map)] for a specific
   table, that returns -- as sequence of maps -- all records that have
-  id as value of the foreign key field denoted by fk-kw. 
+  id as value of the foreign key field denoted by fk-kw.
   Assumes a simple n to 1 relationship."
   [tablename fk-kw]
   {:pre [fk-kw]}
@@ -244,7 +240,9 @@
                 update-links-fn-factory]} (-> er-config :options)]
     (vector relation-kw
             (case relation-type
-              :one> relation
+              :one> (assoc relation
+                           :query-fn (or query-fn
+                                         (-> er-config :entities entity-kw :options :read-fn)))
               :<many (let [fk-kw (or fk-kw (default-fk parent-entity-kw))]
                        (assoc relation
                          :fk-kw fk-kw
@@ -276,7 +274,7 @@
                                 (vector entity-kw
                                         {:options (with-default-entity-options er-config entity-kw options)
                                          :relations relations})))
-                        (into {}))))]    
+                        (into {}))))]
     (update-in er-config' [:entities]
                (fn [entities]
                  (->> entities
@@ -321,30 +319,30 @@
 
 (defn make-er-config
   "Creates a er-config map from an optional options-map and an
-  arbitrary number of entity-specs, i.e. 
+  arbitrary number of entity-specs, i.e.
       (agg/make-er-config options-map? entities)
   Available options:
-  :read-fn-factory          A function (fn [tablename]) returning the 
+  :read-fn-factory          A function (fn [tablename]) returning the
                             default read function.
   :insert-fn-factory        A function (fn [tablename]) returning the
                             default insert function.
   :update-fn-factory        A function (fn [tablename]) returning the
                             default update function.
-  :delete-fn-factory        A function (fn [tablename]) returning the 
+  :delete-fn-factory        A function (fn [tablename]) returning the
                             default delete function.
   :query-<many-fn-factory   A function (fn [tablename fk-kw]) returning
                             the default query-for-many function using
                             one foreign key.
-  :query-<many>-fn-factory  A function (fn [tablename linktablename fk-a fk-b]) 
+  :query-<many>-fn-factory  A function (fn [tablename linktablename fk-a fk-b])
                             returning the default query-for-many function
                             that uses a linktable.
-  :update-links-fn-factory  A function (fn [linktablename fk-a fk-b]) 
-                            returning the default function to update 
+  :update-links-fn-factory  A function (fn [linktablename fk-a fk-b])
+                            returning the default function to update
                             link tables.
-  :id-kw                    A keyword that is taken as default primary 
+  :id-kw                    A keyword that is taken as default primary
                             key column name.
-  :persisted-pred-fn        A predicate (fn [id-kw row-map]) that returns 
-                            true if the given row-map is already present 
+  :persisted-pred-fn        A predicate (fn [id-kw row-map]) that returns
+                            true if the given row-map is already present
                             in DB."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
@@ -374,16 +372,16 @@
   Available options:
   :read-fn       A function (fn [db-spec id]) returning the
                  record with primary key value id as a map.
-  :insert-fn     A function (fn [db-spec row-map]) that inserts 
+  :insert-fn     A function (fn [db-spec row-map]) that inserts
                  the row-map as record, and returns the row-map
                  containing the new primary key value.
   :update-fn     A function (fn [db-spec set-map]) that updates
-                 the record identified by the primary key value 
+                 the record identified by the primary key value
                  within set-map with the values of set-map.
   :delete-fn     A function (fn [db-spec id]) that deletes the
                  record identified by the primary key value.
-  :id-kw         The keyword to be used to get/assoc the primary 
-                 key value. It is also used as primary key 
+  :id-kw         The keyword to be used to get/assoc the primary
+                 key value. It is also used as primary key
                  column name in default DB access functions."
   ([& args]
      (let [{:keys [entity-kw options relation-specs]} (entity-parser args)]
@@ -494,14 +492,14 @@
 
 
 (defn- rt?
-  "Is relation of type? 
+  "Is relation of type?
   Returns true if the relation-type equals t."
   [t [_ {:keys [relation-type]}]]
   (= t relation-type))
 
 
 (defn- rr?
-  "Is relation relevant? 
+  "Is relation relevant?
   Returns true if the relation points to an existing entity description."
   [er-config [_ {:keys [entity-kw]}]]
   (contains? (:entities er-config) entity-kw))
@@ -522,8 +520,11 @@
     {:keys [relation-type entity-kw fk-kw query-fn]}]]
   (case relation-type
     :one>
-    (let [child-id (get m fk-kw)
-          child (load er-config db-spec entity-kw child-id)]
+    (let [child (if (-> er-config :entities entity-kw)
+                  (some->> (get m fk-kw)
+                           (query-fn db-spec)
+                           (#(assoc % ::entity entity-kw))
+                           (load er-config db-spec)))]
       (if child
         (assoc m relation-kw child)
         (dissoc m relation-kw fk-kw)))
@@ -541,7 +542,7 @@
 
 (defn load
   "Loads an aggregate by id, the entity-kw denotes the aggregate root.
-  Returns a map containing the entity-kw in ::entity and all data, or 
+  Returns a map containing the entity-kw in ::entity and all data, or
   nil if the entity-kw is unknown or the record does not exist."
   ([er-config db-spec entity-kw id]
      (let [read-fn (-> er-config :entities entity-kw :options :read-fn)
@@ -572,7 +573,7 @@
    [relation-kw {:keys [entity-kw fk-kw owned?]}]]
   (log "save-prerequisite" relation-kw "->" entity-kw)
   (if-let [p (relation-kw m)] ; does the prerequisite exist?
-    ;; save the prerequisite record and take its id as foreign key 
+    ;; save the prerequisite record and take its id as foreign key
     (let [id-kw (-> er-config :entities entity-kw :options :id-kw)
           persisted? (-> er-config :options :persisted-pred-fn)
           saved-p (save! er-config db-spec entity-kw p)]
@@ -674,7 +675,7 @@
               (remove (partial rt? :one>))
               (filter (partial rr? er-config))
               (reduce (partial save-dependants! (-> er-config (without entity-kw)) db-spec id-kw) m))))))
-                                       
+
 
 ;;--------------------------------------------------------------------
 ;; Delete aggregate

@@ -158,6 +158,7 @@
                        :relations {:address {:relation-type :one>
                                              :entity-kw :address
                                              :fk-kw :address_id
+                                             :query-fn (agg/make-read-fn :address :id)
                                              :owned? true}}}
               :address {:options (agg/make-entity-options :address)}}})
 
@@ -248,6 +249,7 @@
                      :relations {:project {:relation-type :one>
                                            :entity-kw :project
                                            :fk-kw :project_id
+                                           :query-fn (agg/make-read-fn :project :id)
                                            :owned? false}}}}})
 
 (defn setup-<many!
@@ -256,7 +258,9 @@
 
 (defn make-task
   [id desc]
-  {::agg/entity :task :id id :desc desc})
+  {::agg/entity :task
+   :id id
+   :desc desc})
 
 
 (def project {:name "Learning Clojure"
@@ -272,15 +276,18 @@
           expected {::agg/entity :project
                     :id 1
                     :name "Learning Clojure"
-                    :tasks (mapv (partial apply make-task) [[1 "Buy a book"]
-                                                            [2 "Install Java"]
-                                                            [3 "Install Emacs"]
-                                                            [4 "Hack!"]])}]
+                    :tasks (->> [[1 "Buy a book"]
+                                 [2 "Install Java"]
+                                 [3 "Install Emacs"]
+                                 [4 "Hack!"]]
+                                (map (partial apply make-task)))}]
       (is (= expected (agg/save! <many-er @db-con :project m)))
       (is (= expected (agg/load <many-er @db-con :project 1)))
-      (testing "Saving the returned data again has no effect"    
+
+      (testing "Saving the returned data again has no effect"
         (is (= expected (agg/save! <many-er @db-con :project expected)))
         (is (= expected (agg/load <many-er @db-con :project 1))))))
+
   (testing "Task with its project"
     (let [expected {::agg/entity :task
                     :id 1
@@ -442,6 +449,3 @@
     (is (-> er-config :entities :project :relations :tasks :query-fn))
     (is (-> er-config :entities :project :relations :members :update-links-fn))
     (is (= :manager_id (-> er-config :entities :project :relations :manager :fk-kw)))))
-
-
-
