@@ -84,7 +84,7 @@
       (is (= "Donald" (-> loaded-bet :gambler :name)))
       (is (= "4:0" (-> loaded-bet :match :result)))
       (testing "Remove a gambler"
-        (agg/save! er @db-con :bet (dissoc loaded-bet :gambler))
+        (agg/save! er @db-con :bet (assoc loaded-bet :gambler nil))
         (is (= 2 (record-count @db-con :gambler)))
         (is (nil? (-> (agg/load er @db-con :bet 1) :gambler))))
       (testing "Add a link to another, existing gambler"
@@ -103,4 +103,3 @@
         (is (= 2 (record-count @db-con :gambler)))
         (is (= 2 (record-count @db-con :match)))
         (is (= 1 (record-count @db-con :bet)))))))
-

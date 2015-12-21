@@ -90,7 +90,7 @@
                                              :bs [{:name "B1"
                                                    :c {:name "C1"}}]})]
       (is (= 1 (record-count @db-con :c)))
-      (agg/save! er1 @db-con (update-in saved-a [:bs 0] dissoc :c))
+      (agg/save! er1 @db-con (update-in saved-a [:bs 0] assoc :c nil))
       (is (= 1 (record-count @db-con :b)))
       (is (= 0 (record-count @db-con :c))))))
 
@@ -136,7 +136,7 @@
       (is (= 2 (record-count @db-con :c)))
       (is (= 2 (record-count @db-con :b_c))))
     (testing "Delete A, but Bs and Cs must survive"
-      (agg/delete! er2 @db-con saved-a)  
+      (agg/delete! er2 @db-con saved-a)
       (is (= 0 (record-count @db-con :a)))
       (is (= 1 (record-count @db-con :b)))
       (is (= 2 (record-count @db-con :c)))
@@ -163,7 +163,7 @@
       (is (= 3 (-> (agg/load er2 @db-con :b 2) :cs count)))
       (is (= 2 (-> (agg/load er2 @db-con :b 3) :cs count)))
       (is (= 2 (-> (agg/load er2 @db-con :c 3) :bs count))))))
-  
+
 
 ;; -------------------------------------------------------------------
 ;; Scenario 3

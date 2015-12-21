@@ -311,20 +311,25 @@
 (deftest remove-<many-item-test
   (setup-<many! @db-con)
   (testing "Remove a task from a saved project"
-    (let [m (agg/save! <many-er @db-con :project project)
+    (let [m        (agg/save! <many-er @db-con :project project)
           expected (update-in m [:tasks] (comp vec butlast))]
       (is (= expected (agg/save! <many-er @db-con :project (update-in m [:tasks] (comp vec butlast)))))
       (is (= expected (agg/load <many-er @db-con :project 1)))))
   (testing "Remove all tasks from a saved project"
-    (let [m (agg/load <many-er @db-con :project 1)
+    (let [m        (agg/load <many-er @db-con :project 1)
           expected (assoc m :tasks [])]
       (is (= expected (agg/save! <many-er @db-con :project (assoc m :tasks []))))
-      (is (= expected (agg/load <many-er @db-con :project 1))))))
+      (is (= expected (agg/load <many-er @db-con :project 1)))))
+  (testing "Remove entire relation entry from saved project has no effect"
+    (let [m        (agg/load <many-er @db-con :project 1)
+          expected (dissoc m :tasks)]
+      (is (= expected (agg/save! <many-er @db-con :project (dissoc m :tasks))))
+      (is (= expected (dissoc (agg/load <many-er @db-con :project 1) m :tasks))))))
 
 
 (deftest delete-<many-test
   (setup-<many! @db-con)
-  (let [m project
+  (let [m       project
         saved-m (agg/save! <many-er @db-con :project m)]
     (is (= 1 (record-count @db-con :project)))
     (is (= 4 (record-count @db-con :task)))

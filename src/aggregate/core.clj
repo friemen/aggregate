@@ -487,7 +487,7 @@
   "Removes all key-value-pairs from m that correspond to relations."
   [er-config entity-kw m]
   (->> er-config :entities entity-kw :relations
-       keys
+       (keys)
        (cons ::entity)
        (apply (partial dissoc m))))
 
@@ -552,8 +552,9 @@
        (load er-config db-spec m)))
   ([er-config db-spec m]
      (if-let [entity-kw (::entity m)]
-       (let [id-kw (-> er-config :entities entity-kw :options :id-kw)
-             relations (-> er-config :entities entity-kw :relations)]
+       (let [entity    (-> er-config :entities entity-kw)
+             id-kw     (-> entity :options :id-kw)
+             relations (-> entity :relations)]
          (reduce (partial load-relation (-> er-config (without entity-kw)) db-spec id-kw)
                  m
                  relations)))))
@@ -573,21 +574,21 @@
    m
    [relation-kw {:keys [entity-kw fk-kw owned?]}]]
   (log "save-prerequisite" relation-kw "->" entity-kw)
-  (if-let [p (relation-kw m)] ; does the prerequisite exist?
+  (if-let [p (relation-kw m)] ; does m contain the prerequisite?
     ;; save the prerequisite record and take its id as foreign key
-    (let [id-kw (-> er-config :entities entity-kw :options :id-kw)
+    (let [id-kw      (-> er-config :entities entity-kw :options :id-kw)
           persisted? (-> er-config :options :persisted-pred-fn)
-          saved-p (save! er-config db-spec entity-kw p)]
+          saved-p    (save! er-config db-spec entity-kw p)]
       (assoc m
         fk-kw (get saved-p id-kw)
         relation-kw saved-p))
-    ;; prerequisite does not exist
+    ;; prerequisite does not exist in m
     (let [fk-id (fk-kw m)
           persisted? (-> er-config :options :persisted-pred-fn)]
       (when (and fk-id (persisted? id-kw m))
         ;; m is persisted and points to the prerequisite, so update m
         (update-m-fn db-spec {id-kw (get m id-kw) fk-kw nil}))
-      (when owned?
+      (when (and owned? fk-id)
         ;; delete the former prerequisite by the foreign key from DB
         (delete! er-config db-spec entity-kw fk-id))
       (if (persisted? id-kw m)
@@ -605,19 +606,19 @@
   (log "save-dependants" relation-kw "->" entity-kw)
   (let [m-id (get m id-kw)
         m-entity-kw (::entity m)
-        dependants (let [d-id-kw (-> er-config :entities entity-kw :options :id-kw)
-                         update-fn (-> er-config :entities entity-kw :options :update-fn)
-                         current-ds (query-fn db-spec m-id)
-                         saved-ds (->> (get m relation-kw)
-                                       ;; insert foreign key value
-                                       (map #(if (= relation-type :<many>)
-                                               %
-                                               (assoc % fk-kw m-id)))
-                                       (map #(save! (-> er-config (without m-entity-kw))
-                                                     db-spec
-                                                     entity-kw
-                                                     %))
-                                       (mapv #(dissoc % fk-kw)))
+        dependants (let [d-id-kw      (-> er-config :entities entity-kw :options :id-kw)
+                         update-fn    (-> er-config :entities entity-kw :options :update-fn)
+                         current-ds   (query-fn db-spec m-id)
+                         saved-ds     (->> (get m relation-kw)
+                                           (map #(if (= relation-type :<many>)
+                                                   %
+                                                   ;; insert foreign key value
+                                                   (assoc % fk-kw m-id)))
+                                           (map #(save! (-> er-config (without m-entity-kw))
+                                                        db-spec
+                                                        entity-kw
+                                                        %))
+                                           (mapv #(dissoc % fk-kw)))
                          saved-ds-ids (->> saved-ds (map #(get % d-id-kw)) set)]
                      ;; delete or unlink all orphans
                      (doseq [orphan (->> current-ds (remove #(saved-ds-ids (get % d-id-kw))))]
@@ -639,12 +640,12 @@
   "Invokes either the :update or the :insert function, depending on whether
   m is persisted or not."
   [er-config db-spec entity-kw id-kw m]
-  (let [persisted? (-> er-config :options :persisted-pred-fn)
+  (let [persisted?   (-> er-config :options :persisted-pred-fn)
         ins-or-up-fn (-> er-config :entities entity-kw :options
                          (get (if (persisted? id-kw m) :update-fn :insert-fn)))
-        saved-m (->> m
-                     (without-relations-and-entity er-config entity-kw)
-                     (ins-or-up-fn db-spec))]
+        saved-m      (->> m
+                          (without-relations-and-entity er-config entity-kw)
+                          (ins-or-up-fn db-spec))]
     (assoc m
       id-kw (get saved-m id-kw)
       ::entity entity-kw)))
@@ -661,19 +662,23 @@
      (when m
        ;; first process all records linked with a :one> relation-type
        ;; because we need their ids as foreign keys in m
-       (let [id-kw (-> er-config :entities entity-kw :options :id-kw)
-             relations (-> er-config :entities entity-kw :relations)
-             update-fn (-> er-config :entities entity-kw :options :update-fn)
-             m (->> relations
-                    (filter (partial rt? :one>))
-                    (filter (partial rr? er-config))
-                    (reduce (partial save-prerequisite! (-> er-config (without entity-kw)) db-spec update-fn id-kw) m)
+       (let [entity    (-> er-config :entities entity-kw)
+             id-kw     (-> entity :options :id-kw)
+             relations (-> entity :relations)
+             update-fn (-> entity :options :update-fn)
+             m         (->> relations
+                            (filter (partial rt? :one>))
+                            (filter (partial rr? er-config))
+                            (reduce (partial save-prerequisite! (-> er-config (without entity-kw))
+                                             db-spec update-fn id-kw)
+                                    m)
                     ;; this will persist m itself (containing all foreign keys)
                     (ins-or-up! er-config db-spec entity-kw id-kw))]
          ;; process all other types of relations
          ;; that require m's id as value for the foreign key
          (->> relations
               (remove (partial rt? :one>))
+              (filter #(contains? m (first %)))
               (filter (partial rr? er-config))
               (reduce (partial save-dependants! (-> er-config (without entity-kw)) db-spec id-kw) m))))))
 
