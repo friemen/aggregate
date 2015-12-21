@@ -401,6 +401,7 @@
   ([relation-kw entity-kw options]
      (vector relation-kw (merge {:relation-type :one>
                                  :entity-kw entity-kw
+                                 :query-fn nil
                                  :fk-kw (default-fk relation-kw)
                                  :owned? true}
                                 options))))
