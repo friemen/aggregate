@@ -11,7 +11,7 @@ Martin Fowler briefly explains
 
 [![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](http://clojars.org/aggregate)
 
-[API docs](https://friemen.github.com/aggregate) 
+[API docs](https://friemen.github.com/aggregate)
 
 Include this in your namespace declaration:
 ```clojure
@@ -53,7 +53,7 @@ implementations based on other libraries.
 
 For quickly testing it in the REPL, clone the
 [sample project](https://github.com/friemen/aggregate-sample)
-and open it's core namespace. Start the REPL and load the namespace.
+and open its core namespace. Start the REPL and load the namespace.
 
 
 The library mainly provides three functions
@@ -131,14 +131,14 @@ What follows is a global er-config that enables `load`, `save!` and
 ```
 
 You can see that the library provides factories that create default DB
-access functions based on core.java.jdbc. But you can use any other
+access functions based on clojure.java.jdbc. But you can use any other
 functions that comply to the contract. Where you don't specify your own
 function a default is provided.
 
-The er-config above is complete, but it's dangerous because any
+The er-config above is complete, but its dangerous because any
 operation on a project might affect surprisingly large chunks of
-data. So in order to just take the necessary relationships into
-account we can narrow the er-config down to support certain use cases.
+data. In order to just take the necessary relationships into
+account we can narrow the er-config down to support certain use cases:
 
 ```clojure
 (def manage-person-to-project-er
@@ -179,7 +179,7 @@ A `save!` could look like this:
                                     :members [{:name "Daisy"}
                                               {:name "Mini"}]
                                     :manager {:name "Daisy"}}))
-;= #'user/project									
+;= #'user/project
 (clojure.pprint/pprint project)
 ; {:aggregate.core/entity :project,
 ;  :id 2,
@@ -246,12 +246,12 @@ The er-config is only a map of the form
                          :relations {<relation-kw> {}}}}
 ```
 
-Each entity is represented by it's entity-kw and a corresponding
+Each entity is represented by its entity-kw and a corresponding
 map. Each of these entity maps contains general options in an
 `:options` map, for example the functions to be used for read, insert,
 update and delete, and a map of relations.
 
-Each relation consists of it's relation-kw, as it is used in
+Each relation consists of its relation-kw, as it is used in
 concrete data, and options. The options depend on the type of the
 relation. The mandatory `:relation-type` must have one of the values
 `:one>`, `:<many` or `:<many>`. The other mandatory entry is the
@@ -277,6 +277,8 @@ Optional values within options-map are
 * `:fk-kw` A keyword specifying the column name of the foreign key
   column whose value points to a record in the other table. Default value
   is `<relation-kw>_id`.
+* (since 1.0.2) `:query-fn` A function `(fn [db-spec id])` returning the
+ linked record or nil. Defaults to `(make-read-fn entity-kw id-kw)`.
 * `:owned?` A boolean, true by default. Signals if records reachable
   through this relation are considered a part, i.e. if the whole is
   deleted the parts vanish, and if the whole no longer references a
@@ -374,17 +376,17 @@ entity in order to query additional data.
 containing the entity keyword in `::agg/entity`.
 
 To take foreign key constraints into account it will first recursively
-save all nested data of `->1` relations, because the resulting ids
+save all nested data of `->1` relations because the resulting ids
 will be included in the current record. If a nested map is missing,
-although it's foreign key value is present then the foreign key value
-is nilled. If the relation is `owned?` then the record itself is
+but it's foreign key value is present, the foreign key value
+is nilled. If the relation is `owned?` the record itself is
 deleted from the database.
 
 Then it actually inserts or updates the current record, depending
-whether the record has an :id value set or not.
+on whether the record has an :id value set or not.
 
-Afterwards all records reachable through `->n` and `->mn` relations
-(which might need the id of the current record as value for a foreign
+Afterwards, all records reachable through `->n` and `->mn` relations
+(which need the id of the current record as value for a foreign
 key) are saved. It queries the database to detect orphans. In an
 `owned?` relation all records NOT contained in the nested vector will
 be deleted from the database. In non-owned relations the orphans will
@@ -397,7 +399,7 @@ the link records from the link table.
 
 ```clojure
 (agg/delete! er-config db-spec entity-keyword data)
-;; or 
+;; or
 (agg/delete! er-config db-spec data)
 ```
 
@@ -407,13 +409,13 @@ containing the entity keyword in `::agg/entity`.
 To take the foreign key constraints into account it will first
 recursively delete all records reachable through owned `->n` and
 `->mn` relations to make sure those don't contain foreign keys to the
-current record. In the non-owned cases only the foreign keys will be
+current record. In non-owned cases only the foreign keys will be
 nilled and the link records will be removed, respectively.
 
 Then the current record is deleted from the database.
 
 Afterwards all records reachable through `->1` relations that the
-current record pointed to are recursively deleted.
+current record points to are recursively deleted.
 
 `delete!` can only work this way for those records whose data is
 actually loaded. If you only provide an id to `delete!` it will just
