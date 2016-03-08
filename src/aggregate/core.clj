@@ -74,7 +74,7 @@
 (defn persisted?
   "Returns true if the map m has already been persisted.
   It is assumed that the existence of an id-kw key is enough evidence."
-  [id-kw m]
+  [id-kw m entity-kw db-spec]
   (contains? m id-kw))
 
 
@@ -341,9 +341,9 @@
                             link tables.
   :id-kw                    A keyword that is taken as default primary
                             key column name.
-  :persisted-pred-fn        A predicate (fn [id-kw row-map]) that returns
-                            true if the given row-map is already present
-                            in DB."
+  :persisted-pred-fn        A predicate (fn [id-kw row-map entity-kw db-spec])
+                            that returns true if the given row-map is already 
+                            present in DB."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
     (with-defaults {:options (with-default-options options)
@@ -585,13 +585,13 @@
     ;; prerequisite does not exist in m
     (let [fk-id (fk-kw m)
           persisted? (-> er-config :options :persisted-pred-fn)]
-      (when (and fk-id (persisted? id-kw m))
+      (when (and fk-id (persisted? id-kw m entity-kw db-spec))
         ;; m is persisted and points to the prerequisite, so update m
         (update-m-fn db-spec {id-kw (get m id-kw) fk-kw nil}))
       (when (and owned? fk-id)
         ;; delete the former prerequisite by the foreign key from DB
         (delete! er-config db-spec entity-kw fk-id))
-      (if (persisted? id-kw m)
+      (if (persisted? id-kw m entity-kw db-spec)
         (dissoc m fk-kw)
         m))))
 
@@ -642,7 +642,9 @@
   [er-config db-spec entity-kw id-kw m]
   (let [persisted?   (-> er-config :options :persisted-pred-fn)
         ins-or-up-fn (-> er-config :entities entity-kw :options
-                         (get (if (persisted? id-kw m) :update-fn :insert-fn)))
+                         (get (if (persisted? id-kw m entity-kw db-spec)
+                                :update-fn
+                                :insert-fn)))
         saved-m      (->> m
                           (without-relations-and-entity er-config entity-kw)
                           (ins-or-up-fn db-spec))]
