@@ -552,10 +552,10 @@ Subsequently, to save a row-map the update-fn will be used instead of
 insert-fn. This mechanism is fine for auto-generated keys, but becomes
 an obstacle if you want to handle in the id value by yourself.
 
-Therefore the er-config options may contain a key `:persisted-pred-fn`
-that points to a function `(fn [id-kw row-map])` that returns true,
-if the row-map has a corresponding record in the database. The default
-value is `agg/persisted?`.
+Therefore the er-config options may contain a key `:persisted-pred-fn` that
+points to a function `(fn [id-kw row-map entity-kw db-spec])` that returns true,
+if the row-map has a corresponding record in the database. The default value is
+`agg/persisted?`.
 
 Alternative implementations for `:persisted-pred-fn` might use an
 additional DB lookup or use a special key to mark a row-map as
