@@ -553,7 +553,7 @@ insert-fn. This mechanism is fine for auto-generated keys, but becomes
 an obstacle if you want to handle in the id value by yourself.
 
 Therefore the er-config options may contain a key `:persisted-pred-fn` that
-points to a function `(fn [id-kw row-map entity-kw db-spec])` that returns true,
+points to a function `(fn [db-spec entity-kw id-kw row-map])` that returns true,
 if the row-map has a corresponding record in the database. The default value is
 `agg/persisted?`.
 

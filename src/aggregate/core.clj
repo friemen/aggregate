@@ -74,7 +74,7 @@
 (defn persisted?
   "Returns true if the map m has already been persisted.
   It is assumed that the existence of an id-kw key is enough evidence."
-  [id-kw m entity-kw db-spec]
+  [db-spec entity-kw id-kw m]
   (contains? m id-kw))
 
 
@@ -341,7 +341,7 @@
                             link tables.
   :id-kw                    A keyword that is taken as default primary
                             key column name.
-  :persisted-pred-fn        A predicate (fn [id-kw row-map entity-kw db-spec])
+  :persisted-pred-fn        A predicate (fn [db-spec entity-kw id-kw row-map])
                             that returns true if the given row-map is already 
                             present in DB."
   [& args]
@@ -585,13 +585,13 @@
     ;; prerequisite does not exist in m
     (let [fk-id (fk-kw m)
           persisted? (-> er-config :options :persisted-pred-fn)]
-      (when (and fk-id (persisted? id-kw m entity-kw db-spec))
+      (when (and fk-id (persisted? db-spec entity-kw id-kw m))
         ;; m is persisted and points to the prerequisite, so update m
         (update-m-fn db-spec {id-kw (get m id-kw) fk-kw nil}))
       (when (and owned? fk-id)
         ;; delete the former prerequisite by the foreign key from DB
         (delete! er-config db-spec entity-kw fk-id))
-      (if (persisted? id-kw m entity-kw db-spec)
+      (if (persisted? db-spec entity-kw id-kw m)
         (dissoc m fk-kw)
         m))))
 
@@ -642,7 +642,7 @@
   [er-config db-spec entity-kw id-kw m]
   (let [persisted?   (-> er-config :options :persisted-pred-fn)
         ins-or-up-fn (-> er-config :entities entity-kw :options
-                         (get (if (persisted? id-kw m entity-kw db-spec)
+                         (get (if (persisted? db-spec entity-kw id-kw m entity-kw)
                                 :update-fn
                                 :insert-fn)))
         saved-m      (->> m
