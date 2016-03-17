@@ -561,9 +561,16 @@ Alternative implementations for `:persisted-pred-fn` might use an
 additional DB lookup or use a special key to mark a row-map as
 "not yet persisted".
 
+## Changes
+
+### Version 1.1.0
+
+* Extended signature of `persisted?` to allow for more complex checks whether
+  a record is already persisted.
+
 
 ## License
 
-Copyright © 2014 F.Riemenschneider
+Copyright © 2014-2016 F.Riemenschneider
 
 Distributed under the Eclipse Public License 1.0.

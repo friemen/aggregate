@@ -342,7 +342,7 @@
   :id-kw                    A keyword that is taken as default primary
                             key column name.
   :persisted-pred-fn        A predicate (fn [db-spec entity-kw id-kw row-map])
-                            that returns true if the given row-map is already 
+                            that returns true if the given row-map is already
                             present in DB."
   [& args]
   (let [{:keys [options entity-specs]} (er-config-parser args)]
@@ -636,18 +636,13 @@
       m)))
 
 
-(defn- ins-or-up!
+(defn- persist!
   "Invokes either the :update or the :insert function, depending on whether
   m is persisted or not."
-  [er-config db-spec entity-kw id-kw m]
-  (let [persisted?   (-> er-config :options :persisted-pred-fn)
-        ins-or-up-fn (-> er-config :entities entity-kw :options
-                         (get (if (persisted? db-spec entity-kw id-kw m entity-kw)
-                                :update-fn
-                                :insert-fn)))
-        saved-m      (->> m
-                          (without-relations-and-entity er-config entity-kw)
-                          (ins-or-up-fn db-spec))]
+  [er-config db-spec ins-or-up-fn entity-kw id-kw m]
+  (let [saved-m (->> m
+                     (without-relations-and-entity er-config entity-kw)
+                     (ins-or-up-fn db-spec))]
     (assoc m
       id-kw (get saved-m id-kw)
       ::entity entity-kw)))
@@ -656,26 +651,31 @@
 (defn save!
   "Saves an aggregate data structure to the database."
   ([er-config db-spec m]
-     {:pre [(::entity m)]}
+   {:pre [(::entity m)]}
      (save! er-config db-spec (::entity m) m))
   ([er-config db-spec entity-kw m]
-     {:pre [(or (nil? m) (map? m))]}
+   {:pre [(or (nil? m) (map? m))]}
      (log "save" entity-kw)
      (when m
        ;; first process all records linked with a :one> relation-type
        ;; because we need their ids as foreign keys in m
-       (let [entity    (-> er-config :entities entity-kw)
-             id-kw     (-> entity :options :id-kw)
-             relations (-> entity :relations)
-             update-fn (-> entity :options :update-fn)
-             m         (->> relations
-                            (filter (partial rt? :one>))
-                            (filter (partial rr? er-config))
-                            (reduce (partial save-prerequisite! (-> er-config (without entity-kw))
-                                             db-spec update-fn id-kw)
-                                    m)
-                    ;; this will persist m itself (containing all foreign keys)
-                    (ins-or-up! er-config db-spec entity-kw id-kw))]
+       (let [entity     (-> er-config :entities entity-kw)
+             id-kw      (-> entity :options :id-kw)
+             persisted? (-> er-config :options :persisted-pred-fn)
+             upsert-fn  (-> er-config :entities entity-kw :options
+                            (get (if (persisted? db-spec entity-kw id-kw m)
+                                   :update-fn
+                                   :insert-fn)))
+             relations  (-> entity :relations)
+             update-fn  (-> entity :options :update-fn)
+             m          (->> relations
+                             (filter (partial rt? :one>))
+                             (filter (partial rr? er-config))
+                             (reduce (partial save-prerequisite! (-> er-config (without entity-kw))
+                                              db-spec update-fn id-kw)
+                                     m)
+                             ;; this will persist m itself (containing all foreign keys)
+                             (persist! er-config db-spec upsert-fn entity-kw id-kw))]
          ;; process all other types of relations
          ;; that require m's id as value for the foreign key
          (->> relations
