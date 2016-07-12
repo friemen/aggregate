@@ -115,7 +115,7 @@
     {:pre [(get set-map id-kw)]}
     (jdbc/update! db-spec
                   (keyword tablename)
-                  set-map
+                  (dissoc set-map id-kw)
                   [(str (name id-kw) " = ?") (get set-map id-kw)])
     set-map))
 
@@ -178,7 +178,6 @@
        (doseq [b bs]
          (jdbc/insert! db-spec (keyword linktablename) {(keyword fk-a) a-id
                                                         (keyword fk-b) (get b b-id-kw)})))))
-
 
 
 (defn make-entity-options
@@ -603,7 +602,7 @@
    id-kw
    m
    [relation-kw {:keys [relation-type entity-kw fk-kw update-links-fn query-fn owned?]}]]
-  (log "save-dependants" relation-kw "->" entity-kw)
+  (log "save-dependants" relation-kw "->" entity-kw relation-type (get m id-kw))
   (let [m-id (get m id-kw)
         m-entity-kw (::entity m)
         dependants (let [d-id-kw      (-> er-config :entities entity-kw :options :id-kw)
@@ -655,7 +654,7 @@
      (save! er-config db-spec (::entity m) m))
   ([er-config db-spec entity-kw m]
    {:pre [(or (nil? m) (map? m))]}
-     (log "save" entity-kw)
+     (log "save" entity-kw m)
      (when m
        ;; first process all records linked with a :one> relation-type
        ;; because we need their ids as foreign keys in m
