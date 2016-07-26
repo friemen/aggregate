@@ -113,10 +113,12 @@
   {:pre [id-kw]}
   (fn [db-spec set-map]
     {:pre [(get set-map id-kw)]}
-    (jdbc/update! db-spec
-                  (keyword tablename)
-                  (dissoc set-map id-kw)
-                  [(str (name id-kw) " = ?") (get set-map id-kw)])
+    (let [set-map' (dissoc set-map id-kw)]
+      (when-not (empty? set-map')
+        (jdbc/update! db-spec
+                      (keyword tablename)
+                      (dissoc set-map id-kw)
+                      [(str (name id-kw) " = ?") (get set-map id-kw)])))
     set-map))
 
 
