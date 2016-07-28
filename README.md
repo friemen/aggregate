@@ -3,7 +3,7 @@
 Handle SQL persistence for nested datastructures.
 
 The name 'aggregate' stems from Eric Evans book
-[Domain Driven Design](http://domainlanguage.com/ddd/patterns/).
+[Domain Driven Design](http://dddcommunity.org/book/evans_2003/).
 Martin Fowler briefly explains
 [what is meant by the term Aggregate](http://martinfowler.com/bliki/DDD_Aggregate.html).
 
