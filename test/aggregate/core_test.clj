@@ -296,7 +296,9 @@
                     :project {::agg/entity :project
                               :id 1
                               :name "Learning Clojure"}}]
-      (is (= expected (agg/load <many-er @db-con :task 1))))))
+      (is (= expected (-> <many-er
+                          (agg/without [:project :tasks])
+                          (agg/load @db-con :task 1)))))))
 
 
 (deftest add-<many-item-test
@@ -381,33 +383,37 @@
 (deftest save-load-<many>-test
   (setup-<many>! @db-con)
   (testing "One project with some members"
-    (let [m {:name "Webapp"
-             :members [{:name "Donald"}
-                       {:name "Mickey"}]}
+    (let [m        {:name    "Webapp"
+                    :members [{:name "Donald"}
+                              {:name "Mickey"}]}
           expected {::agg/entity :project
-                    :id 1
-                    :name "Webapp"
-                    :members [{::agg/entity :person
-                               :id 1
-                               :name "Donald"}
-                              {::agg/entity :person
-                               :id 2
-                               :name "Mickey"}]}]
+                    :id          1
+                    :name        "Webapp"
+                    :members     [{::agg/entity :person
+                                   :id          1
+                                   :name        "Donald"}
+                                  {::agg/entity :person
+                                   :id          2
+                                   :name        "Mickey"}]}]
       (is (= expected (agg/save! <many>-er @db-con :project m)))
       (is (= 2 (record-count @db-con :project_person)))
-      (is (= expected (agg/load <many>-er @db-con :project 1))))))
+      (is (= expected (-> <many>-er
+                          (agg/without [:person :projects])
+                          (agg/load @db-con :project 1)))))))
 
 
 (deftest add-<many>-item-test
   (setup-<many>! @db-con)
   (testing "Add an item to an existing project"
-    (let [m {:name "Webapp"
-             :members [{:name "Donald"}
-                       {:name "Mickey"}]}
-          saved-m (agg/save! <many>-er @db-con :project m)
+    (let [m        {:name    "Webapp"
+                    :members [{:name "Donald"}
+                              {:name "Mickey"}]}
+          saved-m  (agg/save! <many>-er @db-con :project m)
           expected (update-in saved-m [:members] conj {::agg/entity :person :id 3 :name "Daisy"})]
       (is (= expected (agg/save! <many>-er @db-con :project (update-in saved-m [:members] conj {:name "Daisy"}))))
-      (is (= expected (agg/load <many>-er @db-con :project 1))))))
+      (is (= expected (-> <many>-er
+                          (agg/without [:person :projects])
+                          (agg/load @db-con :project 1)))))))
 
 
 (deftest remove-<many>-link-test

@@ -76,8 +76,7 @@
                       :id)
           book    {:book_name "Moby Dick"
                    :authors   [{:author_name "Herman Melville"
-                                :book        {:id book-id}
-                                :book_id     book-id}]
+                                :book        {:id book-id}}]
                    :id        book-id}
           book'   (agg/save! model @db-con :book book)]
       (is (= {:book_name             "Moby Dick",

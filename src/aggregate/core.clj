@@ -514,7 +514,7 @@
   (and id (visited [entity-kw id])))
 
 
-(declare load save* delete!)
+(declare load-relations save* delete!)
 
 
 ;;--------------------------------------------------------------------
@@ -523,49 +523,59 @@
 
 (defn- load-relation
   "Loads more data according to the specified relation."
-  [er-config db-spec id-kw m
+  [er-config db-spec visited id-kw m
    [relation-kw
     {:keys [relation-type entity-kw fk-kw query-fn]}]]
   (case relation-type
     :one>
-    (let [child (if (-> er-config :entities entity-kw)
-                  (some->> (get m fk-kw)
-                           (query-fn db-spec)
-                           (#(assoc % ::entity entity-kw))
-                           (load er-config db-spec)))]
+    (let [child (let [id (get m fk-kw)]
+                  (if (and (not (visited? visited entity-kw id))
+                           (-> er-config :entities entity-kw))
+                    (some->> (query-fn db-spec id)
+                             (#(assoc % ::entity entity-kw))
+                             (load-relations er-config db-spec visited))))]
       (if child
         (assoc m relation-kw child)
         (dissoc m relation-kw fk-kw)))
     (:<many :<many>)
     (if (-> er-config :entities entity-kw)
-      (assoc m
-        relation-kw
-        (->> (get m id-kw)
-             (query-fn db-spec)
-             (map #(assoc % ::entity entity-kw))
-             ;; invoke load for each record returned by the query
-             (mapv (partial load er-config db-spec))))
-      m)))
+         (assoc m
+                relation-kw
+                (->> (get m id-kw)
+                     (query-fn db-spec)
+                     (map #(assoc % ::entity entity-kw))
+                     ;; invoke load for each record returned by the query
+                     (mapv (partial load-relations er-config db-spec visited))))
+         m)))
+
+
+(defn- load-relations
+  [er-config db-spec visited m]
+  (if-let [entity-kw (::entity m)]
+    (let [entity    (-> er-config :entities entity-kw)
+          id-kw     (-> entity :options :id-kw)
+          id        (get m id-kw)
+          relations (-> entity :relations)]
+      (if (visited? visited entity-kw id)
+        m ;; short-circuit
+        (reduce (partial load-relation
+                         er-config db-spec (conj visited [entity-kw id]) id-kw)
+                m
+                relations)))))
 
 
 (defn load
-  "Loads an aggregate by id, the entity-kw denotes the aggregate root.
+  "Loads an aggregate by `id`. The `entity-kw` denotes the aggregate root.
   Returns a map containing the entity-kw in ::entity and all data, or
   nil if the entity-kw is unknown or the record does not exist."
   ([er-config db-spec entity-kw id]
-     (let [read-fn (-> er-config :entities entity-kw :options :read-fn)
-           m (if read-fn (some-> (read-fn db-spec id)
-                                 (assoc ::entity entity-kw)))]
-       (load er-config db-spec m)))
+   (let [read-fn (-> er-config :entities entity-kw :options :read-fn)
+         m       (if read-fn
+                   (some-> (read-fn db-spec id)
+                           (assoc ::entity entity-kw)))]
+     (load-relations er-config db-spec #{} m)))
   ([er-config db-spec m]
-     (if-let [entity-kw (::entity m)]
-       (let [entity    (-> er-config :entities entity-kw)
-             id-kw     (-> entity :options :id-kw)
-             relations (-> entity :relations)]
-         (reduce (partial load-relation (-> er-config (without entity-kw)) db-spec id-kw)
-                 m
-                 relations)))))
-
+   (load-relations er-config db-spec #{} m)))
 
 
 ;;--------------------------------------------------------------------
