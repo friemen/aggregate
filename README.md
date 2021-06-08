@@ -11,7 +11,7 @@ Martin Fowler briefly explains
 
 [![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](http://clojars.org/aggregate)
 
-[API docs](https://friemen.github.com/aggregate)
+[API docs](https://friemen.github.io/aggregate/)
 
 Include this in your namespace declaration:
 ```clojure
@@ -571,6 +571,6 @@ additional DB lookup or use a special key to mark a row-map as
 
 ## License
 
-Copyright © 2014-2016 F.Riemenschneider
+Copyright © 2014-2021 F.Riemenschneider
 
 Distributed under the Eclipse Public License 1.0.
