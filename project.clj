@@ -1,9 +1,9 @@
-(defproject aggregate "1.1.3"
+(defproject aggregate "1.1.4-SNAPSHOT"
   :description "Persisting complex datastructures in SQL tables"
   :url "https://github.com/friemen/aggregate"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.7.0"]
+  :dependencies [[org.clojure/clojure "1.10.3"]
                  [parsargs "1.2.0"]
                  [org.clojure/java.jdbc "0.4.2"]]
   :plugins [[codox "0.8.10"]]
