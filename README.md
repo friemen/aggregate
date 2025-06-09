@@ -3,13 +3,13 @@
 Handle SQL persistence for nested datastructures.
 
 The name 'aggregate' stems from Eric Evans book
-[Domain Driven Design](http://dddcommunity.org/book/evans_2003/).
+[Domain Driven Design](https://www.oreilly.com/library/view/domain-driven-design-tackling/0321125215/).
 Martin Fowler briefly explains
-[what is meant by the term Aggregate](http://martinfowler.com/bliki/DDD_Aggregate.html).
+[what is meant by the term Aggregate](https://martinfowler.com/bliki/DDD_Aggregate.html).
 
 [![Build Status](https://travis-ci.org/friemen/aggregate.png?branch=master)](https://travis-ci.org/friemen/aggregate)
 
-[![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](http://clojars.org/aggregate)
+[![Clojars Project](http://clojars.org/aggregate/latest-version.svg)](https://clojars.org/aggregate)
 
 [API docs](https://friemen.github.io/aggregate/)
 
@@ -571,6 +571,6 @@ additional DB lookup or use a special key to mark a row-map as
 
 ## License
 
-Copyright © 2014-2021 F.Riemenschneider
+Copyright © 2014-2025 F.Riemenschneider
 
 Distributed under the Eclipse Public License 1.0.
