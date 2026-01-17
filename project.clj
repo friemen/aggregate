@@ -10,7 +10,7 @@
    :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[org.clojure/clojure "1.12.1"]
+  [[org.clojure/clojure "1.12.4"]
    [parsargs "1.2.0"]
    [org.clojure/java.jdbc "0.7.12"]]
 
@@ -28,7 +28,7 @@
   {:dev
    {:dependencies
     [[java-jdbc/dsl "0.1.3"]
-     [com.h2database/h2 "2.3.232"]
+     [com.h2database/h2 "2.4.240"]
      [org.postgresql/postgresql "9.3-1101-jdbc4"]]}}
 
   :scm
@@ -36,5 +36,6 @@
    :url "https://github.com/friemen/aggregate"}
 
   :repositories
-  [["clojars" {:url "https://clojars.org/repo"
-               :creds :gpg}]])
+  [["clojars"
+    {:url "https://clojars.org/repo"
+     :creds :gpg}]])
